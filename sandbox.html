@@ -447,10 +447,16 @@ function renderBoard(){
 function actb(a,title,eff,dis,extra=''){return `<button class="actb" data-a="${a}" ${extra} ${dis?`disabled title="${esc(dis)}"`:''}><b>${title}</b><span>${eff}</span></button>`}
 function renderDesk(){
   const t=ui.sel,R=ROUNDS[S.round],isInd=t==='ind';let h='';
+  if(!S.met){
+    h=`<h2>開局 <small>第一回合開始前</small></h2>
+    <div class="qbox"><b>初次相遇</b><br>陌生的船靠岸了。原住民組親手把人心卡發給每個外來組，各 2 張，自己留 4 張。<br>之後所有人心的增加、減少，都由原住民組發出或收回。</div>
+    <div class="note">開局持有：荷蘭 白銀5 糧食1｜西班牙 白銀3 糧食1｜漢人移民 白銀1 糧食2｜原住民 鹿皮6 糧食3 獵場卡4 人心卡10</div>
+    <div><button class="btn primary" data-a="meet" style="font-size:1.1rem;padding:12px 22px">原住民發出人心卡，開始第一回合</button></div>
+    <div class="note">按下後才會出現各組的落腳、回應和代幣交換。</div>`;
+    $('#desk').innerHTML=h;return}
   h+=`<h2>${tn(t)}組的行動 <small>第${CN[S.round]}回合｜${R.t}</small></h2>`;
   h+=`<div class="picker">${TEAMS.map(x=>`<button class="chip t-${x.id} ${t===x.id?'on':''}" data-a="sel" data-t="${x.id}">${x.n}</button>`).join('')}</div>`;
   h+=`<div class="qbox">任務：${isInd?R.ind:R.task}<br><b>核心問題：${R.q}</b></div>`;
-  if(!S.met){h+=`<div class="sec"><h3>開局</h3>${actb('meet','初次相遇','原住民親手發給每個外來組人心 2 張，自己留 4 張')}</div>`}
   if(S.round===1){
     if(!isInd){h+=`<div class="sec"><h3>選一個地方落腳</h3>${S.loc[t]?`<div>已落腳：<b>${LOC[S.loc[t]].n}</b></div>`:''}<div class="acts-grid">${['A','B','C'].map(L=>{const others=OUT.filter(o=>o!==t&&S.loc[o]===L).map(tn);
       return actb('loc',`${L}　${LOC[L].n}`,LOC[L].e+(others.length?`<br>⚠ ${others.join('、')}已選這裡：收穫各 −1`:''),S.loc[t]?'已經選過地點':null,`data-l="${L}"`)}).join('')}</div><div class="note">兩組選同一地點：收穫各 −1</div></div>`}
