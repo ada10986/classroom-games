@@ -330,7 +330,7 @@ const A={
   exTo(d){ui.ex.to=d.t;renderDesk()}, exGive(d){ui.ex.give=d.r;renderDesk()}, exGet(d){ui.ex.get=d.r;renderDesk()},
   exN(d){ui.ex.n=Math.max(1,ui.ex.n+ +d.v);renderDesk()}, exM(d){ui.ex.m=Math.max(0,ui.ex.m+ +d.v);renderDesk()},
   exCount(){ui.ex.count=!ui.ex.count;renderDesk()},
-  exGo(){const f=ui.sel,{to,give,n,get,m,count}=ui.ex;
+  exGo(){const f=ui.sel,{to,give,n,get,m}=ui.ex,count=ui.ex.count&&S.round>1;
     if(fail(f===to&&'請選另一組交易對象'))return; if(fail((S.out[f]||S.out[to])&&'退出臺灣的組不能交易'))return;
     if(count&&fail(gate(f)))return;
     if(to==='ind'&&fail(indBlock(f)))return; if(f==='ind'&&fail(indBlock(to)))return;
@@ -480,7 +480,7 @@ function renderDesk(){
       <span class="step"><button data-a="exN" data-v="-1" aria-label="減少">−</button><output class="num">${ex.n}</output><button data-a="exN" data-v="1" aria-label="增加">+</button></span></div>
     <div class="line"><span class="lbl">換回</span>${RES.map(x=>`<button class="chip r k-${x.k} ${ex.get===x.k?'on':''}" data-a="exGet" data-r="${x.k}">${x.n}</button>`).join('')}
       <span class="step"><button data-a="exM" data-v="-1" aria-label="減少">−</button><output class="num">${ex.m}</output><button data-a="exM" data-v="1" aria-label="增加">+</button></span></div>
-    <div class="line" style="justify-content:space-between"><label class="note"><input type="checkbox" id="exc" data-a="exCount" ${ex.count?'checked':''}> 算作這組的一個行動</label>
+    <div class="line" style="justify-content:space-between">${S.round>1?`<label class="note"><input type="checkbox" id="exc" data-a="exCount" ${ex.count?'checked':''}> 算作這組的一個行動</label>`:'<span class="note">第一回合的交換不算行動</span>'}
       <button class="btn primary" data-a="exGo">${tn(t)} ${RN[ex.give].n}×${ex.n} ⇄ ${tn(ex.to)} ${ex.m>0?RN[ex.get].n+'×'+ex.m:'（不回給）'}</button></div>
     <div class="note">換回數量設 0 就是單方面送出（例如交出鹿皮）。</div></div>`;
   h+=`<div class="why"><h3 style="font-family:var(--f-body);font-size:1rem;color:var(--muted)">行動前先寫下</h3>
