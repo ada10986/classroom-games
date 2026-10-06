@@ -124,6 +124,15 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--accent);outline
 .why input:focus{border-color:var(--accent);outline:none}
 .r3{border:1.5px solid var(--brass);border-radius:10px;padding:12px;display:grid;gap:8px}
 .r3 h3{color:var(--brass)}
+.steps{margin:0;padding:0;list-style:none;counter-reset:st;display:grid;gap:6px}
+.steps li{counter-increment:st;display:flex;gap:10px;align-items:center;justify-content:space-between;padding:8px 10px;border-radius:8px;border:1px solid var(--line)}
+.steps li>div{display:grid;gap:2px;min-width:0}
+.steps li>div>b::before{content:counter(st) "　";color:var(--brass)}
+.steps li span{font-size:.82rem;color:var(--muted)}
+.steps li.cur{border:2px solid var(--brass);background:var(--soft)}
+.steps li.wait{opacity:.55}
+.steps li.done{opacity:.85}
+.billmini{font-size:.84rem;display:grid;gap:3px;margin-top:6px;padding-top:6px;border-top:1px dashed var(--line)}
 
 /* log */
 .log{list-style:none;margin:0;padding:0;display:grid;gap:0;max-height:520px;overflow:auto}
@@ -277,18 +286,22 @@ function commit(team,title,ops,opt={}){
   if(opt.mut) opt.mut(S);
   const deltas=[],notes=[];
   ops.forEach(o=>{if(!o.d)return;const cur=S.res[o.t][o.r];let nv=cur+o.d;if(nv<0){notes.push(`${tn(o.t)}${RN[o.r].n}不夠，只扣到 0`);nv=0}const a=nv-cur;S.res[o.t][o.r]=nv;if(a)deltas.push({t:o.t,r:o.r,d:a})});
-  if(opt.count){const u=S.used[S.round];u[team]=(u[team]||0)+1}
+  if(opt.count){const k=ukey();const u=S.used[k]||(S.used[k]={});u[team]=(u[team]||0)+1}
   S.log.push({id:++S.seq,round:S.round,team,title,deltas,note:[opt.note,...notes].filter(Boolean).join('；'),kind:opt.kind||'act'});
   save(); render(); checkCrises(); if(!opt.quiet) toast('已記錄：'+title);
 }
 
 /* ---------- rules helpers ---------- */
-function limit(t){if(S.out[t])return 0;if(S.round===3){if((t==='nl'||t==='es')&&S.res[t].silver===0)return 0;if(S.res[t].food===0)return 1}return 2}
+const ukey=()=>S.round===3&&S.kox?'f':S.round;
+const usedOf=t=>((S.used[ukey()]||{})[t]||0);
+function limit(t){if(S.round===3&&S.kox){if(S.out[t])return 0;if((t==='nl'||t==='es')&&S.res[t].silver===0)return 0;return 1}if(S.out[t])return 0;if(S.round===3){if((t==='nl'||t==='es')&&S.res[t].silver===0)return 0;if(S.res[t].food===0)return 1}return 2}
 function gate(t){
   if(!S.met) return '請先按「初次相遇」';
   if(S.round===1) return '第一回合只做落腳和回應';
   if(S.out[t]) return '這組已退出臺灣';
-  const L=limit(t),u=S.used[S.round][t]||0;
+  if(S.round===3&&!S.billed) return '第三回合請先「檢查帳單」';
+  if(S.round===3&&S.ended[3]&&!S.kox) return '請先翻開最後事件卡：鄭成功登陸';
+  const L=limit(t),u=usedOf(t);
   if(L===0) return '白銀 0：據點撤退，只能旁觀';
   if(u>=L) return L===1?'糧食 0：這回合只能做 1 個行動，已經用完':`這回合的 ${L} 個行動已經用完`;
   return null}
@@ -350,7 +363,7 @@ const A={
     if(fail(!a&&!b&&!c&&'請先寫下選擇和理由'))return;
     commit(ui.sel,`我們選「${a||'＿＿'}」，因為我們最需要「${b||'＿＿'}」，願意放棄「${c||'＿＿'}」`,[],{kind:'why'});
     ['a','b','c'].forEach(k=>{const el=$('#ws-'+k);if(el)el.value=''})},
-  end(){const r=S.round;if(fail(S.ended[r]&&`第${CN[r]}回合已經結算過`))return;if(fail(!S.met&&'請先按「初次相遇」'))return;
+  end(){const r=S.round;if(fail(S.ended[r]&&`第${CN[r]}回合已經結算過`))return;if(fail(r===3&&!S.billed&&'第三回合請先「檢查帳單」'))return;if(fail(!S.met&&'請先按「初次相遇」'))return;
     const w=clone(S.res),ops=[],notes=[];
     const add=(t,k,d,why)=>{if(S.out[t])return;const cur=w[t][k],nv=Math.max(0,cur+d),a=nv-cur;w[t][k]=nv;if(a)ops.push({t,r:k,d:a});notes.push(`${tn(t)} ${why}`+(a!==d?`（不足，實際 ${a?sg(a):'0'}）`:''))};
     OUT.forEach(t=>{if(S.treaty[t]&&!S.out[t]){if(w.ind.deer>0){add('ind','deer',-1,`簽約歸順，交鹿皮 1 給${tn(t)}`);add(t,'deer',1,'收到歸順鹿皮 +1')}else notes.push(`原住民沒有鹿皮可交給${tn(t)}`)}});
@@ -359,11 +372,14 @@ const A={
     if(w.ind.hunt>=3)add('ind','food',1,'獵場 3 張以上，打獵自給：糧食 +1');else add('ind','food',-1,'獵場 2 張以下：糧食 −1');
     commit('all',`第${CN[r]}回合結束：固定消耗結算`,ops,{kind:'end',note:notes.join('；'),quiet:true,mut:s=>{s.ended[r]=true}});
     S.snap[r]=clone(S.res); if(r<3)S.round=r+1; save(); render(); toast(`第${CN[r]}回合已結算`+(r<3?`，進入第${CN[r+1]}回合`:''))},
-  bill(){push({type:'bill'},true)},
-  kox(){if(fail(S.kox&&'鄭成功事件已經發生'))return;
+  bill(){if(S.billed){push({type:'bill'},true);return}
+    const snap={};TEAMS.forEach(t=>snap[t.id]=billOf(t.id));
+    commit('all','第三回合第一步：檢查帳單',[],{kind:'event',quiet:true,note:TEAMS.map(t=>`${t.n}：${snap[t.id].length?snap[t.id].join('；'):'狀態良好'}`).join('｜'),mut:s=>{s.billed=true;s.billSnap=snap}});
+    push({type:'bill'},true)},
+  kox(){if(fail(S.kox&&'鄭成功事件已經發生'))return;if(fail(!S.ended[3]&&'請先結算第三回合固定消耗'))return;
     commit('all','最後事件：1661 年鄭成功從鹿耳門登陸',[{t:'ind',r:'hunt',d:-1},{t:'han',r:'food',d:1}],{kind:'event',quiet:true,note:'荷蘭組退出臺灣；鄭氏軍隊屯墾要糧要地：原住民獵場 −1，漢人糧食 +1',mut:s=>{s.kox=true;s.out.nl=1}});
     push({type:'kox'},true)},
-  reveal(){S.reveal=true;save();render();push({type:'reveal'},true)},
+  reveal(){if(fail(!S.kox&&'請先翻開最後事件卡'))return;S.reveal=true;save();render();push({type:'reveal'},true)},
   lossConflict(d){const t=ui.cur.team;closeOv([{type:'loss',team:t,left:S.loc[t]==='A'?1:2,reason:'衝突爆發'}])},
   deerGone(){if(fail(S.deerGone&&'已經套用過'))return;closeOv();commit('all','鹿群消失：所有外來組人心 −1',OUT.filter(t=>!S.out[t]).flatMap(t=>xfer(t,'ind','heart',1)),{kind:'event',mut:s=>s.deerGone=true})},
   loss(d){const it=ui.cur,t=it.team,k=d.r;if(S.res[t][k]<1||!lossOK(t,k))return;
@@ -441,12 +457,27 @@ function badges(id){const r=S.res[id],a=[];
 
 /* ---------- render ---------- */
 function render(){renderTop();renderBoard();renderRoundRules();renderDesk();renderLog();renderLedger()}
+function stepper3(){
+  const st=[
+    {n:'檢查帳單',d:'先依每一組現在手上的籌碼，看前兩回合留下了什麼後果',done:S.billed,btn:'bill',bl:S.billed?'再看一次帳單':'檢查帳單'},
+    {n:'各組行動',d:'每組寫下選擇理由，再依帳單限制做行動（在下方選組）',done:S.ended[3],on:!!S.billed},
+    {n:'結算固定消耗',d:'糧食、白銀扣除，港口賣鹿皮',done:S.ended[3],btn:'end',bl:'結算第三回合',on:!!S.billed},
+    {n:'最後事件卡：鄭成功登陸',d:'荷蘭退出；原住民獵場 −1，漢人糧食 +1',done:S.kox,btn:'kox',bl:'翻開事件卡',on:!!S.ended[3]},
+    {n:'最後一次取捨',d:'每組 1 個行動（在下方選組）',done:S.reveal,on:!!S.kox},
+    {n:'翻開祕密任務',d:'看每組有沒有達成',done:S.reveal,btn:'reveal',bl:'翻開祕密任務',on:!!S.kox}];
+  const cur=st.findIndex(x=>!x.done);
+  let h=`<div class="r3"><h3>第三回合｜帳單與變局・進行順序</h3><ol class="steps">`+st.map((x,i)=>{
+    const state=x.done?'done':i===cur?'cur':x.on===false?'wait':'avail';
+    const showBtn=x.btn&&((!x.done&&x.on!==false)||(x.btn==='bill'&&x.done));
+    return `<li class="${state}"><div><b>${x.n}</b><span>${x.d}</span>${i===0&&S.billSnap?`<div class="billmini">${TEAMS.map(t=>`<div><b style="color:var(--${t.id})">${t.n}</b>　${(S.billSnap[t.id]||[]).length?S.billSnap[t.id].join('；'):'狀態良好'}</div>`).join('')}</div>`:''}</div>
+      ${showBtn?`<button class="btn ${x.done?'':'primary'}" data-a="${x.btn}">${x.bl}</button>`:x.done?'<span class="pill good">完成</span>':''}</li>`}).join('')+`</ol></div>`;
+  return h}
 function renderTop(){
   $('#rounds').innerHTML=[1,2,3].map(r=>`<button data-a="round" data-r="${r}" class="${S.round===r?'on':''}">第${CN[r]}回合${S.ended[r]?'<span class="ok">已結算</span>':''}</button>`).join('');
   const e=$('#endBtn');e.textContent=S.ended[S.round]?`第${CN[S.round]}回合已結算`:`結束第${CN[S.round]}回合・結算消耗`;e.disabled=!!S.ended[S.round];
   $('#tBtn').classList.toggle('primary',ui.teacher);$('#tBtn').textContent=ui.teacher?'老師調整中':'老師調整'}
 function renderBoard(){
-  $('#board').innerHTML=TEAMS.map(t=>{const r=S.res[t.id],u=S.used[S.round][t.id]||0,L=limit(t.id);
+  $('#board').innerHTML=TEAMS.map(t=>{const r=S.res[t.id],u=usedOf(t.id),L=limit(t.id);
     return `<article class="team t-${t.id} ${ui.sel===t.id?'sel':''} ${S.out[t.id]?'out':''}" data-a="sel" data-t="${t.id}">
     <header><div><h3>${t.n}</h3><small>${t.sub}</small></div>${S.round>1?`<span class="acts num">行動 ${u}/${L}</span>`:''}</header>
     <ul class="res">${RES.map(x=>`<li><span class="tok k-${x.k}">${x.c}</span><span class="nm">${x.n}</span><span class="v num ${r[x.k]===0?'zero':''}">${r[x.k]}</span>
@@ -462,6 +493,7 @@ function renderDesk(){
     <div><button class="btn primary" data-a="meet" style="font-size:1.1rem;padding:12px 22px">原住民發出人心卡，開始第一回合</button></div>
     <div class="note">按下後才會出現各組的落腳、回應和代幣交換。</div>`;
     $('#desk').innerHTML=h;return}
+  if(S.round===3){h+=stepper3();if(!S.billed){$('#desk').innerHTML=h;return}}
   h+=`<h2>${tn(t)}組的行動 <small>第${CN[S.round]}回合｜${R.t}</small></h2>`;
   h+=`<div class="picker">${TEAMS.map(x=>`<button class="chip t-${x.id} ${t===x.id?'on':''}" data-a="sel" data-t="${x.id}">${x.n}</button>`).join('')}</div>`;
   h+=`<div class="qbox">任務：${isInd?R.ind:R.task}<br><b>核心問題：${R.q}</b></div>`;
@@ -476,8 +508,8 @@ function renderDesk(){
     else{h+=`<div class="sec"><h3>回應陌生的船（對每一組各選一個）</h3>${OUT.map(o=>`<div class="trow"><span class="who" style="color:var(--${o})">${tn(o)}</span>${S.resp[o]?`<span class="pill info">已選：${{welcome:'歡迎',watch:'觀望',guard:'防備'}[S.resp[o]]}</span>`:
       `<button class="chip" data-a="resp" data-t="${o}" data-k="welcome">歡迎・發人心 1</button><button class="chip" data-a="resp" data-t="${o}" data-k="watch">觀望・不變</button><button class="chip" data-a="resp" data-t="${o}" data-k="guard">防備・下回合不交易</button>`}</div>`).join('')}</div>`}
   }else{
-    const g=gate(t),u=S.used[S.round][t]||0,L=limit(t);
-    h+=`<div class="sec"><h3>選 ${L} 個行動　已用 ${u} / ${L}</h3>${g?`<div class="warnline">${g}</div>`:''}`;
+    const g=gate(t),u=usedOf(t),L=limit(t);
+    h+=`<div class="sec"><h3>${S.round===3&&S.kox?'最後一次取捨：':''}選 ${L} 個行動　已用 ${u} / ${L}</h3>${g?`<div class="warnline">${g}</div>`:''}`;
     if(!isInd){const ib=indBlock(t);
       h+=`<div class="acts-grid">
       ${actb('fair','1 公平買鹿皮','白銀 −1，鹿皮 +1（向原住民買）',g||ib||(S.res[t].silver<1&&'白銀不夠'))}
@@ -488,10 +520,6 @@ function renderDesk(){
       ${[['give','6 給予信任','發給某組人心 1'],['take','7 收回信任','收回某組人心 1'],['treaty','8 簽約歸順','每回合交 1 張鹿皮給某組，換那一組不能再強迫或開墾']].map(([a,n,e])=>
       `<div class="trow"><span class="who">${n}</span>${OUT.filter(o=>!S.out[o]).map(o=>`<button class="chip t-${o}" data-a="${a}" data-t="${o}" ${g||(a==='treaty'&&S.treaty[o])?'disabled':''}>${tn(o)}</button>`).join('')}<span class="note">${e}</span></div>`).join('')}`}
     h+=`</div>`}
-  if(S.round===3){h+=`<div class="r3"><h3>第三回合・帳單與變局（全體）</h3><div class="acts-grid">
-    ${actb('bill','檢查帳單','依人心、糧食、白銀、獵場、鹿皮列出每組後果')}
-    ${actb('kox','最後事件卡：鄭成功登陸','荷蘭退出；原住民獵場 −1，漢人糧食 +1',S.kox&&'已經發生')}
-    ${actb('reveal','翻開祕密任務','最後一次取捨後，看每組有沒有達成',S.reveal&&'已翻開')}</div></div>`}
   const ex=ui.ex,others=TEAMS.filter(x=>x.id!==t&&!S.out[x.id]);if(ex.to===t||S.out[ex.to])ex.to=others[0]?.id;
   h+=`<div class="ex" id="ex"><h3 style="font-family:var(--f-display);font-size:1.12rem">代幣交換（談好條件後輸入）</h3>
     <div class="line"><span class="lbl">交換對象</span>${others.map(x=>`<button class="chip t-${x.id} ${ex.to===x.id?'on':''}" data-a="exTo" data-t="${x.id}">${x.n}</button>`).join('')}</div>
