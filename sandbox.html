@@ -114,6 +114,8 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--accent);outline
 .step button{border:0;background:var(--soft);width:30px;height:30px;font-size:1rem}
 .step output{min-width:2.4ch;text-align:center;font-weight:700;font-size:1.05rem}
 .why{display:grid;gap:6px}
+.stepbox{border:2px solid var(--accent);border-radius:10px;padding:12px 14px}
+.stepbox h3{font-family:var(--f-display);font-size:1.12rem;color:var(--accent)}
 .why .line{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-family:var(--f-display);font-size:1.02rem}
 .why input{font:inherit;font-family:var(--f-body);font-size:.92rem;border:none;border-bottom:2px solid var(--line);background:transparent;color:var(--ink);padding:2px 4px;width:9em}
 .why input:focus{border-color:var(--accent);outline:none}
@@ -359,10 +361,10 @@ const A={
   reveal(){S.reveal=true;save();render();push({type:'reveal'},true)},
   lossConflict(d){const t=ui.cur.team;closeOv([{type:'loss',team:t,left:S.loc[t]==='A'?1:2,reason:'衝突爆發'}])},
   deerGone(){if(fail(S.deerGone&&'已經套用過'))return;closeOv();commit('all','鹿群消失：所有外來組人心 −1',OUT.filter(t=>!S.out[t]).flatMap(t=>xfer(t,'ind','heart',1)),{kind:'event',mut:s=>s.deerGone=true})},
-  loss(d){const it=ui.cur,t=it.team,k=d.r;if(S.res[t][k]<1)return;
+  loss(d){const it=ui.cur,t=it.team,k=d.r;if(S.res[t][k]<1||!lossOK(t,k))return;
     const ops=[{t,r:k,d:-1}];if(k==='heart'&&t!=='ind')ops.push({t:'ind',r:'heart',d:1});
     commit(t,`${it.reason}：失去 ${RN[k].n} 1`,ops,{kind:'loss',quiet:true});
-    it.left--; const any=RES.some(r=>S.res[t][r.k]>0); if(it.left<=0||!any)closeOv(); else renderOv()},
+    it.left--; const any=RES.some(r=>lossOK(t,r.k)&&S.res[t][r.k]>0); if(it.left<=0||!any)closeOv(); else renderOv()},
   ovClose(){closeOv()},
   round(d){S.round=+d.r;save();render()},
   sel(d){ui.sel=d.t;if(ui.ex.to===d.t)ui.ex.to=d.t==='ind'?'nl':'ind';render()},
@@ -395,8 +397,8 @@ function renderOv(){const it=ui.cur,box=$('#ovc');box.className='ovc';box.style.
     <div class="rule">接受：照行動結果進行（${eff}）<br>抵抗：行動失敗，雙方各失去 1 個籌碼（自選）</div>
     <div class="row"><button class="btn primary" data-a="react" data-k="accept">接受</button><button class="btn" data-a="react" data-k="resist" style="border-color:var(--bad);color:var(--bad);font-weight:700">抵抗</button></div>`}
   else if(it.type==='loss'){tc(it.team);const r=S.res[it.team];
-    h=`<div class="who">${tn(it.team)}組・${esc(it.reason)}</div><div class="big" style="font-size:2.4rem">還要失去 ${it.left} 個籌碼</div><div class="note">由這組自己選要放棄哪一種${it.team!=='ind'?'；交出的人心卡會回到原住民手上':''}</div>
-    <div class="row">${RES.map(x=>`<button class="chip r k-${x.k}" data-a="loss" data-r="${x.k}" ${r[x.k]<1?'disabled':''}><span class="tok" style="display:inline-grid;width:20px;height:20px;font-size:.7rem;vertical-align:-4px">${x.c}</span> ${x.n}（${r[x.k]}）</button>`).join('')}</div>
+    h=`<div class="who">${tn(it.team)}組・${esc(it.reason)}</div><div class="big" style="font-size:2.4rem">還要失去 ${it.left} 個籌碼</div><div class="note">由這組自己選要放棄哪一種${it.team!=='ind'?'；交出的人心卡會回到原住民手上':'（人心卡是原住民發出的信任，不會因抵抗而失去）'}</div>
+    <div class="row">${RES.filter(x=>lossOK(it.team,x.k)).map(x=>`<button class="chip r k-${x.k}" data-a="loss" data-r="${x.k}" ${r[x.k]<1?'disabled':''}><span class="tok" style="display:inline-grid;width:20px;height:20px;font-size:.7rem;vertical-align:-4px">${x.c}</span> ${x.n}（${r[x.k]}）</button>`).join('')}</div>
     <div class="row"><button class="btn" data-a="ovClose">略過</button></div>`}
   else if(it.type==='bill'){
     h=`<div class="big" style="color:var(--brass);font-size:2.6rem">第三回合・帳單</div><div class="billist">${TEAMS.map(t=>{const b=billOf(t.id);
@@ -413,6 +415,7 @@ function renderOv(){const it=ui.cur,box=$('#ovc');box.className='ovc';box.style.
   box.innerHTML=h}
 A.billLoss=d=>{closeOv([{type:'loss',team:d.t,left:S.loc[d.t]==='A'?1:2,reason:'衝突爆發'}])};
 
+function lossOK(t,k){return !(t==='ind'&&k==='heart')}
 function billOf(id){const r=S.res[id],b=[];if(S.out[id])return['已退出臺灣'];
   if(id!=='ind'){if(r.heart===0)b.push(`人心 0：衝突爆發，失去 ${S.loc[id]==='A'?1:2} 個籌碼，不能再和原住民交易`);else if(r.heart===1)b.push('人心 1：部落不再合作，不能公平買鹿皮或和原住民交易')}
   if(r.food===0)b.push('糧食 0：有人離開，這回合只能做 1 個行動');
@@ -457,6 +460,11 @@ function renderDesk(){
   h+=`<h2>${tn(t)}組的行動 <small>第${CN[S.round]}回合｜${R.t}</small></h2>`;
   h+=`<div class="picker">${TEAMS.map(x=>`<button class="chip t-${x.id} ${t===x.id?'on':''}" data-a="sel" data-t="${x.id}">${x.n}</button>`).join('')}</div>`;
   h+=`<div class="qbox">任務：${isInd?R.ind:R.task}<br><b>核心問題：${R.q}</b></div>`;
+  {const done=S.log.filter(e=>e.kind==='why'&&e.round===S.round&&e.team===t);
+  h+=`<div class="why stepbox"><h3>第一步｜行動前先寫下</h3>
+    <div class="line">我們選<input id="ws-a" placeholder="大員">，因為我們最需要<input id="ws-b" placeholder="白銀">，願意放棄<input id="ws-c" placeholder="人心"></div>
+    <div><button class="btn primary" data-a="why">記錄${tn(t)}組的選擇理由</button></div>
+    ${done.length?`<div class="note">本回合已寫：${done.map(e=>esc(e.title)).join('<br>')}</div>`:`<div class="note">${tn(t)}組這回合還沒寫，寫完再進行下面的行動。</div>`}</div>`;}
   if(S.round===1){
     if(!isInd){h+=`<div class="sec"><h3>選一個地方落腳</h3>${S.loc[t]?`<div>已落腳：<b>${LOC[S.loc[t]].n}</b></div>`:''}<div class="acts-grid">${['A','B','C'].map(L=>{const others=OUT.filter(o=>o!==t&&S.loc[o]===L).map(tn);
       return actb('loc',`${L}　${LOC[L].n}`,LOC[L].e+(others.length?`<br>⚠ ${others.join('、')}已選這裡：收穫各 −1`:''),S.loc[t]?'已經選過地點':null,`data-l="${L}"`)}).join('')}</div><div class="note">兩組選同一地點：收穫各 −1</div></div>`}
@@ -489,9 +497,6 @@ function renderDesk(){
     <div class="line" style="justify-content:space-between">${S.round>1?`<label class="note"><input type="checkbox" id="exc" data-a="exCount" ${ex.count?'checked':''}> 算作這組的一個行動</label>`:'<span class="note">第一回合的交換不算行動</span>'}
       <button class="btn primary" data-a="exGo">${tn(t)} ${RN[ex.give].n}×${ex.n} ⇄ ${tn(ex.to)} ${ex.m>0?RN[ex.get].n+'×'+ex.m:'（不回給）'}</button></div>
     <div class="note">換回數量設 0 就是單方面送出（例如交出鹿皮）。</div></div>`;
-  h+=`<div class="why"><h3 style="font-family:var(--f-body);font-size:1rem;color:var(--muted)">行動前先寫下</h3>
-    <div class="line">我們選<input id="ws-a" placeholder="大員">，因為我們最需要<input id="ws-b" placeholder="白銀">，願意放棄<input id="ws-c" placeholder="人心"></div>
-    <div><button class="btn" data-a="why">記錄${tn(t)}組的選擇理由</button></div></div>`;
   const keep={};['a','b','c'].forEach(k=>{const el=document.getElementById('ws-'+k);if(el)keep[k]=el.value});
   $('#desk').innerHTML=h;['a','b','c'].forEach(k=>{if(keep[k])document.getElementById('ws-'+k).value=keep[k]})}
 function dsHTML(ds,only){return ds.filter(d=>!only||d.t===only).map(d=>`<span class="d t-${d.t}">${only?'':`<i>${tn(d.t)}</i> `}${RN[d.r].n} <span class="${d.d>0?'plus':'minus'}">${sg(d.d)}</span></span>`).join('')}
