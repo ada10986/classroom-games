@@ -299,10 +299,10 @@ const A={
     if(fail(S.round!==1&&'落腳只在第一回合'))return; if(fail(t==='ind'&&'原住民組不用選落腳地點'))return; if(fail(S.loc[t]&&'這組已經選過地點，要改請按「復原上一步」'))return;
     const shared=OUT.filter(o=>o!==t&&S.loc[o]===L), pen=shared.length>0&&L!=='A', key=L==='B'?'food':'silver';
     const ops=[];let note='';
-    if(L==='B'){ops.push({t,r:'food',d:pen?1:2},...xfer('ind',t,'hunt',1),...xfer(t,'ind','heart',1))}
-    if(L==='C'){ops.push({t,r:'silver',d:pen?1:2});note='糧食要向新港社換'}
-    if(pen){shared.filter(o=>!S.pen[o]).forEach(o=>ops.push({t:o,r:key,d:-1}));note=[`和${shared.map(tn).join('、')}選同一地點，收穫各 −1`,note].filter(Boolean).join('；')}
-    commit(t,`落腳：${LOC[L].n}`,ops,{note,mut:s=>{s.loc[t]=L;if(pen){s.pen[t]=1;shared.forEach(o=>s.pen[o]=1)}}})},
+    if(L==='B'){ops.push({t,r:'food',d:2},...xfer('ind',t,'hunt',1),...xfer(t,'ind','heart',1))}
+    if(L==='C'){ops.push({t,r:'silver',d:2});note='糧食要向新港社換'}
+    if(pen){ops.push({t,r:key,d:-1});shared.filter(o=>!S.pen[o]).forEach(o=>ops.push({t:o,r:key,d:-1}));note=[`和${shared.map(tn).join('、')}選同一地點：${[t,...shared].map(tn).join('、')}的${RN[key].n}收穫各 −1`,note].filter(Boolean).join('；')}
+    commit(t,`落腳：${LOC[L].n}`+(pen?`（和${shared.map(tn).join('、')}同地點，收穫各 −1）`:''),ops,{note,mut:s=>{s.loc[t]=L;if(pen){s.pen[t]=1;shared.forEach(o=>s.pen[o]=1)}}})},
   resp(d){const tg=d.t,k=d.k,lab={welcome:'歡迎',watch:'觀望',guard:'防備'}[k];
     if(fail(S.round!==1&&'回應只在第一回合'))return; if(fail(!S.met&&'請先按「初次相遇」'))return; if(fail(S.resp[tg]&&'已經回應過這組'))return;
     const ops=k==='welcome'?xfer('ind',tg,'heart',1):[];
