@@ -83,7 +83,10 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--accent);outline
 .pill.bad{color:var(--bad);font-weight:700} .pill.warn{color:var(--warn)} .pill.info{color:var(--muted)} .pill.good{color:var(--good);font-weight:700}
 
 /* main */
-.main{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:16px;align-items:start}
+.main{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.35fr);gap:16px;align-items:start}
+@media (min-width:901px){.side{position:sticky;top:calc(env(safe-area-inset-top,0px) + 10px);max-height:calc(100vh - 20px);overflow:auto}}
+.side .rcard{border:0;padding:0}
+.side .rcard+.rcard{border-top:1px dashed var(--line);padding-top:12px}
 @media (max-width:900px){.main{grid-template-columns:1fr}}
 .panel{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:14px 16px;display:grid;gap:14px;min-width:0}
 .panel>h2{font-size:1.3rem;display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap}
@@ -123,7 +126,7 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--accent);outline
 .r3 h3{color:var(--brass)}
 
 /* log */
-.log{list-style:none;margin:0;padding:0;display:grid;gap:0;max-height:640px;overflow:auto}
+.log{list-style:none;margin:0;padding:0;display:grid;gap:0;max-height:520px;overflow:auto}
 .log li{padding:8px 2px;border-bottom:1px solid var(--line);display:grid;gap:3px}
 .log .hd{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
 .log .id{font-size:.75rem;color:var(--muted)}
@@ -194,12 +197,14 @@ textarea.cp{width:100%;height:220px;font:inherit;font-size:.82rem;background:var
   <section class="board" id="board" aria-label="各組代幣"></section>
 
   <div class="main">
+    <section class="panel side" id="roundRules" aria-label="本回合交換條件"></section>
     <section class="panel" id="desk"></section>
-    <section class="panel">
-      <h2>交易紀錄 <small id="logCount"></small></h2>
-      <ul class="log" id="log"></ul>
-    </section>
   </div>
+
+  <section class="panel">
+    <h2>交易紀錄 <small id="logCount"></small></h2>
+    <ul class="log" id="log"></ul>
+  </section>
 
   <section class="panel">
     <h2>每回合・每組交易總明細 <small>淨變化＝這回合所有交易和結算加總</small></h2>
@@ -435,7 +440,7 @@ function badges(id){const r=S.res[id],a=[];
   return a}
 
 /* ---------- render ---------- */
-function render(){renderTop();renderBoard();renderDesk();renderLog();renderLedger()}
+function render(){renderTop();renderBoard();renderRoundRules();renderDesk();renderLog();renderLedger()}
 function renderTop(){
   $('#rounds').innerHTML=[1,2,3].map(r=>`<button data-a="round" data-r="${r}" class="${S.round===r?'on':''}">第${CN[r]}回合${S.ended[r]?'<span class="ok">已結算</span>':''}</button>`).join('');
   const e=$('#endBtn');e.textContent=S.ended[S.round]?`第${CN[S.round]}回合已結算`:`結束第${CN[S.round]}回合・結算消耗`;e.disabled=!!S.ended[S.round];
@@ -522,15 +527,23 @@ function buildText(){let s='臺灣登上國際舞臺｜沙盤推演紀錄\n';
   return s}
 function showCopy(txt){ui.cur={type:'copy'};const b=$('#ovc');b.className='ovc';b.innerHTML=`<div class="who" style="color:var(--ink)">選取下面的文字後複製</div><textarea class="cp" id="cpt" readonly>${esc(txt)}</textarea><div class="row"><button class="btn primary" data-a="ovClose">關閉</button></div>`;$('#ov').hidden=false;const ta=$('#cpt');ta.focus();ta.select()}
 
+let RULECARDS=[];
 function renderRules(){const li=a=>`<ul>${a.map(x=>`<li>${x}</li>`).join('')}</ul>`;
-  $('#rulesBody').innerHTML=[
+  RULECARDS=[
   ['開局與初次相遇',`<p>荷蘭：白銀 5、糧食 1｜西班牙：白銀 3、糧食 1｜漢人移民：白銀 1、糧食 2｜原住民：鹿皮 6、糧食 3、獵場卡 4、人心卡 10</p>`+li(['原住民親手發給每個外來組人心 2 張，自己留 4 張','之後人心的增減都由原住民發出或收回；收回的人心卡回到原住民手上，可以再發','每回合行動前先寫：我們選＿＿，因為我們最需要＿＿，願意放棄＿＿'])],
   ['第一回合｜登陸',li(['A 雞籠、淡水：沒有額外收穫；城堡好守，之後衝突只失去 1 個籌碼','B 笨港：糧食 +2，向原住民拿 1 張獵場卡，原住民收回人心 1','C 大員：白銀 +2；糧食要向新港社換','兩組選同一地點：收穫各 −1','原住民回應（每組各選一個）：歡迎＝發人心 1；觀望＝不變；防備＝下回合不和這組交易'])],
   ['第二回合｜交易（每組選 2 個行動）',`<p><b>外來組</b></p>`+li(['1 公平買鹿皮：白銀 −1，鹿皮 +1','2 強迫部落交鹿皮：鹿皮 +2，人心 −1','3 開墾新田：糧食 +2，拿走 1 張獵場卡，人心 −1','4 交易：和任一組換白銀、糧食、鹿皮，價格自己談'])+`<p style="margin-top:6px"><b>原住民組</b></p>`+li(['5 交易：用鹿皮或糧食換白銀，價格自己談','6 給予信任：發給某組人心 1','7 收回信任：收回某組人心 1','8 簽約歸順：每回合交 1 張鹿皮給某組，換那一組不能再強迫或開墾','立即反應：外來組強迫或開墾時，原住民可選「接受」照結果進行，或「抵抗」讓行動失敗、雙方各失去 1 個籌碼'])],
   ['每回合結束固定消耗',li(['荷蘭、西班牙：糧食 −1','漢人：糧食 −2','西班牙：白銀 −1（補給遠，維持據點花錢）','原住民：獵場 3 張以上，打獵自給，糧食 +1；獵場 2 張以下，糧食 −1','有港口者（荷蘭、西班牙）：手上鹿皮自動賣到日本，1 張換白銀 2','紀錄器結算順序：歸順鹿皮 → 港口賣鹿皮 → 固定消耗'])],
   ['第三回合｜帳單',li(['人心 0：衝突爆發，失去 2 個籌碼（雞籠淡水的組只失去 1 個），且不能再和原住民交易','人心 1：部落不再合作，不能公平買鹿皮或和原住民交易','糧食 0：有人離開，這回合只能做 1 個行動','白銀 0：據點撤退，只能旁觀','獵場 0：部落遷往山區（像大肚王國族人）','鹿皮全部用完：鹿群消失，所有外來組人心 −1','最後事件卡：1661 年鄭成功從鹿耳門登陸。荷蘭退出臺灣；原住民獵場 −1，漢人糧食 +1','然後做最後一次取捨並翻開祕密任務'])],
   ['祕密任務（遊戲結束才翻開）',li(TEAMS.map(t=>`${t.n}：${MISSION[t.id].t}`))+`<p class="note" style="margin-top:6px">代幣用完時，紀錄器會跳出該組的狀態畫面（飢荒、據點撤退、衝突爆發、遷往山區、鹿群消失）。第三回合的行動限制由紀錄器自動套用。</p>`]
-  ].map(([h,b])=>`<div class="rcard"><h4>${h}</h4>${b}</div>`).join('')}
+  ];
+  $('#rulesBody').innerHTML=RULECARDS.map(([h,b])=>`<div class="rcard"><h4>${h}</h4>${b}</div>`).join('')}
+function renderRoundRules(){
+  const pick=!S.met?[0]:S.round===1?[1,3]:S.round===2?[2,3]:[4,3];
+  const head=!S.met?'開局':`第${CN[S.round]}回合`;
+  $('#roundRules').innerHTML=`<h2>${head}的交換條件 <small>先看清楚再決定</small></h2>`+
+    pick.map(i=>`<div class="rcard"><h4>${RULECARDS[i][0]}</h4>${RULECARDS[i][1]}</div>`).join('')+
+    `<div class="note">完整規則在頁面最下方。</div>`}
 
 document.addEventListener('click',e=>{const b=e.target.closest('[data-a]');if(!b||b.disabled)return;
   if(b.closest('.team')&&b.dataset.a!=='sel'){e.stopPropagation()}
