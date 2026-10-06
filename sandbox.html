@@ -1,0 +1,531 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>沙盤推演紀錄器</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=LXGW+WenKai+TC:wght@400;700&family=Noto+Sans+TC:wght@400;500;700&display=swap">
+<style>
+/* Layout: a captain's chart table — four team ledgers across the top, action desk + logbook below, round ledger and rules at the bottom */
+:root{
+  --bg:#e7eeec; --paper:#f9fbfa; --ink:#15262e; --muted:#5a6d70; --line:#c8d5d2; --soft:#dfe8e5;
+  --accent:#1d5d70; --accent-ink:#ffffff; --brass:#a8741a;
+  --good:#2f7a4a; --warn:#b07210; --bad:#b3313f;
+  --nl:#cf6418; --es:#a8323f; --han:#2b7656; --ind:#7b5426;
+  --tk-silver:#8995a0; --tk-food:#c49a1c; --tk-deer:#9b6234; --tk-hunt:#4c7b36; --tk-heart:#c03d58;
+  --shade:rgba(10,22,28,.62);
+  --f-display:"LXGW WenKai TC","Noto Serif TC",serif;
+  --f-body:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0e191d; --paper:#15242a; --ink:#e3ebe8; --muted:#90a4a4; --line:#2a3e44; --soft:#1b2d33;
+  --accent:#6db3c6; --accent-ink:#0b1a1f; --brass:#d8a547;
+  --good:#5fbf84; --warn:#e3a843; --bad:#ec6b78;
+  --nl:#ef8a43; --es:#d9606c; --han:#4fb187; --ind:#c08a4f;
+  --tk-silver:#a7b3bd; --tk-food:#e0b93c; --tk-deer:#c3824f; --tk-hunt:#79a95f; --tk-heart:#e5647e;
+  --shade:rgba(0,0,0,.72); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0e191d; --paper:#15242a; --ink:#e3ebe8; --muted:#90a4a4; --line:#2a3e44; --soft:#1b2d33;
+  --accent:#6db3c6; --accent-ink:#0b1a1f; --brass:#d8a547;
+  --good:#5fbf84; --warn:#e3a843; --bad:#ec6b78;
+  --nl:#ef8a43; --es:#d9606c; --han:#4fb187; --ind:#c08a4f;
+  --tk-silver:#a7b3bd; --tk-food:#e0b93c; --tk-deer:#c3824f; --tk-hunt:#79a95f; --tk-heart:#e5647e;
+  --shade:rgba(0,0,0,.72); color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.55}
+.wrap{max-width:1320px;margin:0 auto;padding-inline:16px;padding-block:14px 48px;display:grid;gap:16px}
+h1,h2,h3,h4{font-family:var(--f-display);margin:0;text-wrap:balance;font-weight:700}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible,input:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.num{font-variant-numeric:tabular-nums}
+
+/* top bar */
+.top{display:flex;flex-wrap:wrap;gap:12px 20px;align-items:center;justify-content:space-between}
+.top h1{font-size:1.65rem;line-height:1.2}
+.top h1 small{display:block;font-family:var(--f-body);font-size:.8rem;font-weight:500;color:var(--muted);letter-spacing:.08em}
+.tools{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.btn{border:1px solid var(--line);background:var(--paper);border-radius:8px;padding:7px 12px;font-size:.92rem}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:700}
+.btn.danger{color:var(--bad)}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+.rounds{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--paper)}
+.rounds button{border:0;background:none;padding:8px 14px;font-family:var(--f-display);font-size:1.02rem}
+.rounds button+button{border-left:1px solid var(--line)}
+.rounds button.on{background:var(--ink);color:var(--bg)}
+.rounds button .ok{font-family:var(--f-body);font-size:.72rem;margin-left:4px;opacity:.75}
+
+/* team board */
+.board{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
+.team{background:var(--paper);border:1px solid var(--line);border-radius:12px;overflow:hidden;display:flex;flex-direction:column;cursor:pointer;transition:box-shadow .15s}
+.team.sel{box-shadow:0 0 0 3px var(--tc)}
+.team.out{opacity:.55}
+.team header{background:var(--tc);color:#fff;padding:9px 12px;display:flex;justify-content:space-between;align-items:flex-end;gap:8px}
+.team header h3{font-size:1.35rem;line-height:1.1}
+.team header small{font-size:.75rem;opacity:.9}
+.team header .acts{font-size:.78rem;background:rgba(0,0,0,.22);padding:2px 8px;border-radius:99px;white-space:nowrap}
+.t-nl{--tc:var(--nl)} .t-es{--tc:var(--es)} .t-han{--tc:var(--han)} .t-ind{--tc:var(--ind)}
+.res{list-style:none;margin:0;padding:6px 12px 4px;display:grid;gap:2px}
+.res li{display:grid;grid-template-columns:28px 1fr auto auto;align-items:center;gap:8px;padding:3px 0;border-bottom:1px dashed var(--line)}
+.res li:last-child{border-bottom:0}
+.tok{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-size:.78rem;font-weight:700;color:#fff;background:var(--tk);box-shadow:inset 0 0 0 2px rgba(255,255,255,.35)}
+.k-silver{--tk:var(--tk-silver)} .k-food{--tk:var(--tk-food)} .k-deer{--tk:var(--tk-deer)} .k-hunt{--tk:var(--tk-hunt)} .k-heart{--tk:var(--tk-heart)}
+.res .nm{color:var(--muted);font-size:.9rem}
+.res .v{font-size:1.5rem;font-weight:700;min-width:1.6ch;text-align:right;line-height:1.2}
+.res .v.zero{color:var(--bad)}
+.res .adj{display:flex;gap:3px}
+.res .adj button{width:24px;height:24px;border-radius:6px;border:1px solid var(--line);background:var(--soft);font-size:.9rem;line-height:1;padding:0}
+.badges{display:flex;flex-wrap:wrap;gap:5px;padding:4px 12px 10px;margin-top:auto}
+.pill{font-size:.76rem;padding:2px 8px;border-radius:99px;border:1px solid currentColor;line-height:1.5}
+.pill.bad{color:var(--bad);font-weight:700} .pill.warn{color:var(--warn)} .pill.info{color:var(--muted)} .pill.good{color:var(--good);font-weight:700}
+
+/* main */
+.main{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:16px;align-items:start}
+@media (max-width:900px){.main{grid-template-columns:1fr}}
+.panel{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:14px 16px;display:grid;gap:14px;min-width:0}
+.panel>h2{font-size:1.3rem;display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap}
+.panel>h2 small{font-family:var(--f-body);font-size:.82rem;color:var(--muted);font-weight:500}
+.picker{display:flex;flex-wrap:wrap;gap:6px}
+.chip{border:1.5px solid var(--line);background:var(--paper);border-radius:99px;padding:5px 13px;font-size:.92rem}
+.chip.on{background:var(--tc,var(--ink));border-color:var(--tc,var(--ink));color:#fff;font-weight:700}
+.chip.r.on{background:var(--tk);border-color:var(--tk)}
+.qbox{background:var(--soft);border-radius:10px;padding:10px 12px;font-size:.92rem}
+.qbox b{font-family:var(--f-display);font-size:1.05rem}
+.sec{display:grid;gap:8px}
+.sec h3{font-size:1.08rem;color:var(--muted);font-family:var(--f-body);font-weight:700;letter-spacing:.04em}
+.acts-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px}
+.actb{border:1px solid var(--line);background:var(--paper);border-radius:10px;padding:9px 11px;text-align:left;display:grid;gap:2px}
+.actb:hover:not([disabled]){border-color:var(--accent);background:var(--soft)}
+.actb b{font-size:.98rem}
+.actb span{font-size:.8rem;color:var(--muted)}
+.actb[disabled]{opacity:.45;cursor:not-allowed}
+.actb.done{border-style:dashed}
+.trow{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px}
+.trow .who{min-width:5.5em;font-weight:700}
+.note{font-size:.84rem;color:var(--muted)}
+.warnline{font-size:.88rem;color:var(--bad);font-weight:500}
+.ex{border:1px solid var(--line);border-radius:10px;padding:12px;display:grid;gap:10px}
+.ex .line{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px}
+.ex .lbl{font-size:.86rem;color:var(--muted);min-width:4.5em}
+.step{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.step button{border:0;background:var(--soft);width:30px;height:30px;font-size:1rem}
+.step output{min-width:2.4ch;text-align:center;font-weight:700;font-size:1.05rem}
+.why{display:grid;gap:6px}
+.why .line{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-family:var(--f-display);font-size:1.02rem}
+.why input{font:inherit;font-family:var(--f-body);font-size:.92rem;border:none;border-bottom:2px solid var(--line);background:transparent;color:var(--ink);padding:2px 4px;width:9em}
+.why input:focus{border-color:var(--accent);outline:none}
+.r3{border:1.5px solid var(--brass);border-radius:10px;padding:12px;display:grid;gap:8px}
+.r3 h3{color:var(--brass)}
+
+/* log */
+.log{list-style:none;margin:0;padding:0;display:grid;gap:0;max-height:640px;overflow:auto}
+.log li{padding:8px 2px;border-bottom:1px solid var(--line);display:grid;gap:3px}
+.log .hd{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.log .id{font-size:.75rem;color:var(--muted)}
+.tag{font-size:.75rem;padding:1px 7px;border-radius:5px;background:var(--tc,var(--muted));color:#fff;font-weight:700;white-space:nowrap}
+.t-all{--tc:var(--brass)}
+.rtag{font-size:.75rem;color:var(--muted)}
+.log .tt{font-weight:500}
+.ds{display:flex;flex-wrap:wrap;gap:4px 10px;font-size:.84rem}
+.ds .d{white-space:nowrap}
+.ds .d i{font-style:normal;color:var(--tc);font-weight:700}
+.plus{color:var(--good);font-weight:700}.minus{color:var(--bad);font-weight:700}
+.log .nt{font-size:.8rem;color:var(--muted)}
+.empty{color:var(--muted);font-size:.9rem;padding:12px 0}
+
+/* ledger */
+.ledger{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}
+.rnd{border:1px solid var(--line);border-radius:10px;padding:12px;display:grid;gap:10px;align-content:start;min-width:0}
+.rnd h3{font-size:1.15rem;display:flex;justify-content:space-between;align-items:baseline}
+.rnd h3 small{font-family:var(--f-body);font-size:.78rem;color:var(--muted);font-weight:500}
+.pl{display:grid;gap:3px}
+.pl .net{font-size:.88rem}
+.pl .hold{font-size:.8rem;color:var(--muted)}
+.pl ol{margin:2px 0 0;padding-left:1.3em;font-size:.84rem;display:grid;gap:1px}
+.pl ol li.w{color:var(--muted);list-style:"✎ "}
+
+/* rules */
+details.rules>summary{cursor:pointer;font-family:var(--f-display);font-size:1.3rem;font-weight:700}
+.rgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;margin-top:12px}
+.rcard{border:1px solid var(--line);border-radius:10px;padding:12px;font-size:.9rem;min-width:0}
+.rcard h4{font-size:1.08rem;margin-bottom:6px}
+.rcard ul{margin:0;padding-left:1.2em;display:grid;gap:3px}
+.rcard p{margin:0 0 6px}
+
+/* overlay */
+.ov{position:fixed;inset:0;background:var(--shade);display:grid;place-items:center;padding:16px;z-index:50}
+.ovc{background:var(--paper);border-radius:16px;max-width:560px;width:100%;padding:22px 22px 18px;display:grid;gap:12px;text-align:center;max-height:92vh;overflow:auto;border-top:10px solid var(--tc,var(--brass))}
+.ovc .art{font-size:5.2rem;line-height:1;letter-spacing:.1em}
+.ovc .big{font-family:var(--f-display);font-size:3.6rem;line-height:1.05;color:var(--bad)}
+.ovc .who{font-family:var(--f-display);font-size:1.4rem;color:var(--tc)}
+.ovc .story{font-size:1.05rem}
+.ovc .rule{background:var(--soft);border-radius:8px;padding:8px 10px;font-size:.92rem}
+.ovc .row{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
+.ovc .left{text-align:left}
+.ovc.crisis .art{animation:quake .6s ease-in-out 2}
+@keyframes quake{0%,100%{transform:translateX(0)}25%{transform:translateX(-8px) rotate(-3deg)}75%{transform:translateX(8px) rotate(3deg)}}
+@media (prefers-reduced-motion:reduce){.ovc.crisis .art{animation:none}}
+.billist{display:grid;gap:8px;text-align:left}
+.billist div{border-bottom:1px dashed var(--line);padding-bottom:6px}
+.toast{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:8px 16px;border-radius:99px;font-size:.9rem;z-index:60;max-width:calc(100% - 32px);text-align:center}
+textarea.cp{width:100%;height:220px;font:inherit;font-size:.82rem;background:var(--soft);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:8px}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="top">
+    <h1><small>臺灣登上國際舞臺｜沙盤推演</small>大航海時代・遊戲紀錄器</h1>
+    <div class="tools">
+      <div class="rounds" id="rounds"></div>
+      <button class="btn primary" id="endBtn" data-a="end"></button>
+      <button class="btn" data-a="undo">復原上一步</button>
+      <button class="btn" data-a="teacher" id="tBtn">老師調整</button>
+      <button class="btn" data-a="copy">複製紀錄</button>
+      <button class="btn danger" data-a="reset" id="resetBtn">重新開局</button>
+    </div>
+  </div>
+
+  <section class="board" id="board" aria-label="各組代幣"></section>
+
+  <div class="main">
+    <section class="panel" id="desk"></section>
+    <section class="panel">
+      <h2>交易紀錄 <small id="logCount"></small></h2>
+      <ul class="log" id="log"></ul>
+    </section>
+  </div>
+
+  <section class="panel">
+    <h2>每回合・每組交易總明細 <small>淨變化＝這回合所有交易和結算加總</small></h2>
+    <div class="ledger" id="ledger"></div>
+  </section>
+
+  <section class="panel">
+    <details class="rules" id="rules" open>
+      <summary>交換條件與規則</summary>
+      <div class="rgrid" id="rulesBody"></div>
+    </details>
+  </section>
+</div>
+
+<div class="ov" id="ov" hidden><div class="ovc" id="ovc"></div></div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+const RES=[{k:'silver',n:'白銀',c:'銀'},{k:'food',n:'糧食',c:'糧'},{k:'deer',n:'鹿皮',c:'鹿'},{k:'hunt',n:'獵場卡',c:'獵'},{k:'heart',n:'人心卡',c:'心'}];
+const RN=Object.fromEntries(RES.map(r=>[r.k,r]));
+const TEAMS=[
+  {id:'nl',n:'荷蘭',sub:'有港口'},
+  {id:'es',n:'西班牙',sub:'有港口・補給遠'},
+  {id:'han',n:'漢人移民',sub:'顏思齊、鄭芝龍'},
+  {id:'ind',n:'原住民',sub:'大肚王國／新港社'}];
+const OUT=['nl','es','han'];
+const CN=['','一','二','三'];
+const MISSION={
+  nl:{t:'結束時白銀至少 8',ok:r=>r.silver>=8},
+  es:{t:'白銀不能歸零（據點守住）',ok:r=>r.silver>0},
+  han:{t:'糧食不能歸零',ok:r=>r.food>0},
+  ind:{t:'至少保住 1 張獵場卡，糧食不能歸零',ok:r=>r.hunt>=1&&r.food>0}};
+const LOC={
+  A:{n:'雞籠、淡水',e:'沒有額外收穫；城堡好守，之後衝突只失去 1 個籌碼'},
+  B:{n:'笨港',e:'糧食 +2，向原住民拿 1 張獵場卡，原住民收回人心 1'},
+  C:{n:'大員',e:'白銀 +2；糧食要向新港社換'}};
+const ROUNDS={
+  1:{t:'登陸：人和土地',task:'選一個地方落腳',q:'你最需要什麼？這個地方給得了嗎？',ind:'決定怎麼回應這些陌生的船'},
+  2:{t:'交易：人和人',task:'用手上的東西換需要的東西',q:'你要用公平的方式換，還是用強迫的方式拿？',ind:'決定接受、抵抗，還是簽約歸順'},
+  3:{t:'帳單：後果和變局',task:'面對前兩回合留下的後果，做最後一次取捨',q:'你得到的東西，代價是誰付的？',ind:'最後事件：鄭成功登陸，局面重新洗牌'}};
+const totalDeer=()=>TEAMS.reduce((a,t)=>a+S.res[t.id].deer,0);
+const CRISES=[
+  {id:'food',teams:['nl','es','han','ind'],cond:r=>r.food===0,title:'飢荒',art:'🍚💀',story:'倉庫空了，田裡也沒有收成。有人餓倒，有人收拾行李離開。',rule:'帳單：糧食 0，有人離開，這回合只能做 1 個行動'},
+  {id:'silver',teams:['nl','es'],cond:r=>r.silver===0,title:'據點撤退',art:'🏳️🏰',story:'付不出士兵薪水和補給的錢，只好放棄據點。',rule:'帳單：白銀 0，據點撤退，只能旁觀'},
+  {id:'heart',teams:['nl','es','han'],cond:r=>S.met&&r.heart===0,title:'衝突爆發',art:'⚔️🔥',story:'部落不再相信你們，雙方打了起來。',rule:'帳單：人心 0，失去 2 個籌碼（落腳雞籠淡水的組只失去 1 個），之後不能再和原住民交易',act:'loss-conflict',actL:'選擇要失去的籌碼'},
+  {id:'hunt',teams:['ind'],cond:r=>r.hunt===0,title:'遷往山區',art:'⛰️👣',story:'平原上的獵場都被拿走了，族人只好離開祖先的土地，往山裡遷移。',rule:'帳單：獵場 0，部落遷往山區（像大肚王國族人）'},
+  {id:'deer',teams:['ind'],cond:()=>totalDeer()===0,title:'鹿群消失',art:'🦌❌',story:'鹿被捕光了，草原上再也看不到鹿群。',rule:'帳單：鹿皮全部用完，所有外來組人心 −1',act:'deer-gone',actL:'套用：外來組人心各 −1'}];
+
+const KEY='taiwan-sandbox-recorder-v1';
+function init(){return{
+  res:{nl:{silver:5,food:1,deer:0,hunt:0,heart:0},es:{silver:3,food:1,deer:0,hunt:0,heart:0},han:{silver:1,food:2,deer:0,hunt:0,heart:0},ind:{silver:0,food:3,deer:6,hunt:4,heart:10}},
+  round:1,met:false,loc:{},pen:{},resp:{},guard:{},treaty:{},out:{},ended:{},snap:{},used:{1:{},2:{},3:{}},
+  kox:false,reveal:false,deerGone:false,seen:{},log:[],seq:0}}
+function load(){try{const s=JSON.parse(localStorage.getItem(KEY));return s&&s.res?s:null}catch(e){return null}}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
+let S=load()||init();
+let undo=[];
+const ui={sel:'nl',teacher:false,ex:{to:'ind',give:'silver',n:1,get:'deer',m:1,count:true},q:[],cur:null,resetArm:false};
+const $=s=>document.querySelector(s);
+const tn=id=>id==='all'?'全體':TEAMS.find(t=>t.id===id).n;
+const sg=d=>d>0?'+'+d:'−'+Math.abs(d);
+const clone=o=>JSON.parse(JSON.stringify(o));
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+function toast(msg){const t=$('#toast');t.textContent=msg;t.hidden=false;clearTimeout(toast.h);toast.h=setTimeout(()=>t.hidden=true,2600)}
+function xfer(from,to,r,n){const a=Math.min(n,S.res[from][r]);return a>0?[{t:from,r,d:-a},{t:to,r,d:a}]:[]}
+
+function commit(team,title,ops,opt={}){
+  undo.push(JSON.stringify(S)); if(undo.length>80) undo.shift();
+  if(opt.mut) opt.mut(S);
+  const deltas=[],notes=[];
+  ops.forEach(o=>{if(!o.d)return;const cur=S.res[o.t][o.r];let nv=cur+o.d;if(nv<0){notes.push(`${tn(o.t)}${RN[o.r].n}不夠，只扣到 0`);nv=0}const a=nv-cur;S.res[o.t][o.r]=nv;if(a)deltas.push({t:o.t,r:o.r,d:a})});
+  if(opt.count){const u=S.used[S.round];u[team]=(u[team]||0)+1}
+  S.log.push({id:++S.seq,round:S.round,team,title,deltas,note:[opt.note,...notes].filter(Boolean).join('；'),kind:opt.kind||'act'});
+  save(); render(); checkCrises(); if(!opt.quiet) toast('已記錄：'+title);
+}
+
+/* ---------- rules helpers ---------- */
+function limit(t){if(S.out[t])return 0;if(S.round===3){if((t==='nl'||t==='es')&&S.res[t].silver===0)return 0;if(S.res[t].food===0)return 1}return 2}
+function gate(t){
+  if(!S.met) return '請先按「初次相遇」';
+  if(S.round===1) return '第一回合只做落腳和回應';
+  if(S.out[t]) return '這組已退出臺灣';
+  const L=limit(t),u=S.used[S.round][t]||0;
+  if(L===0) return '白銀 0：據點撤退，只能旁觀';
+  if(u>=L) return L===1?'糧食 0：這回合只能做 1 個行動，已經用完':`這回合的 ${L} 個行動已經用完`;
+  return null}
+function indBlock(t){
+  if(t==='ind')return null;
+  if(S.round===2&&S.guard[t]) return '原住民上回合選了「防備」：這回合不和你們交易';
+  if(S.round===3&&S.met){const h=S.res[t].heart;if(h===0)return '人心 0：衝突爆發，不能再和原住民交易';if(h===1)return '人心 1：部落不再合作，不能公平買鹿皮或和原住民交易'}
+  return null}
+function fail(msg){if(msg){toast(msg);return true}return false}
+
+/* ---------- actions ---------- */
+const A={
+  meet(){if(S.met)return toast('已經完成初次相遇');commit('ind','初次相遇：原住民發給每個外來組人心 2 張，自己留 4 張',OUT.flatMap(t=>xfer('ind',t,'heart',2)),{mut:s=>s.met=true,kind:'event'})},
+  loc(d){const t=ui.sel,L=d.l;
+    if(fail(S.round!==1&&'落腳只在第一回合'))return; if(fail(t==='ind'&&'原住民組不用選落腳地點'))return; if(fail(S.loc[t]&&'這組已經選過地點，要改請按「復原上一步」'))return;
+    const shared=OUT.filter(o=>o!==t&&S.loc[o]===L), pen=shared.length>0&&L!=='A', key=L==='B'?'food':'silver';
+    const ops=[];let note='';
+    if(L==='B'){ops.push({t,r:'food',d:pen?1:2},...xfer('ind',t,'hunt',1),...xfer(t,'ind','heart',1))}
+    if(L==='C'){ops.push({t,r:'silver',d:pen?1:2});note='糧食要向新港社換'}
+    if(pen){shared.filter(o=>!S.pen[o]).forEach(o=>ops.push({t:o,r:key,d:-1}));note=[`和${shared.map(tn).join('、')}選同一地點，收穫各 −1`,note].filter(Boolean).join('；')}
+    commit(t,`落腳：${LOC[L].n}`,ops,{note,mut:s=>{s.loc[t]=L;if(pen){s.pen[t]=1;shared.forEach(o=>s.pen[o]=1)}}})},
+  resp(d){const tg=d.t,k=d.k,lab={welcome:'歡迎',watch:'觀望',guard:'防備'}[k];
+    if(fail(S.round!==1&&'回應只在第一回合'))return; if(fail(!S.met&&'請先按「初次相遇」'))return; if(fail(S.resp[tg]&&'已經回應過這組'))return;
+    const ops=k==='welcome'?xfer('ind',tg,'heart',1):[];
+    commit('ind',`回應${tn(tg)}：${lab}`,ops,{note:k==='guard'?'下回合不和這組交易':'',mut:s=>{s.resp[tg]=k;if(k==='guard')s.guard[tg]=1}})},
+  fair(){const t=ui.sel;if(fail(gate(t)||indBlock(t)))return;
+    if(fail(S.res[t].silver<1&&'白銀不夠'))return; if(fail(S.res.ind.deer<1&&'原住民沒有鹿皮了'))return;
+    commit(t,'公平買鹿皮',[...xfer(t,'ind','silver',1),...xfer('ind',t,'deer',1)],{count:true})},
+  force(){const t=ui.sel;if(fail(gate(t)))return; if(fail(S.treaty[t]&&'原住民已和你們簽約歸順：不能再強迫'))return; if(fail(S.res.ind.deer<1&&'原住民沒有鹿皮了'))return;
+    push({type:'react',team:t,act:'force'},true)},
+  clear(){const t=ui.sel;if(fail(gate(t)))return; if(fail(S.treaty[t]&&'原住民已和你們簽約歸順：不能再開墾'))return; if(fail(S.res.ind.hunt<1&&'原住民沒有獵場卡了'))return;
+    push({type:'react',team:t,act:'clear'},true)},
+  react(d){const it=ui.cur,t=it.team,nm=it.act==='force'?'強迫部落交鹿皮':'開墾新田';
+    if(d.k==='accept'){
+      const ops=it.act==='force'?[...xfer('ind',t,'deer',2),...xfer(t,'ind','heart',1)]:[{t,r:'food',d:2},...xfer('ind',t,'hunt',1),...xfer(t,'ind','heart',1)];
+      closeOv(); commit(t,`${nm}（原住民接受）`,ops,{count:true});
+    }else{
+      closeOv([{type:'loss',team:t,left:1,reason:`${nm}被抵抗`},{type:'loss',team:'ind',left:1,reason:'抵抗的代價'}]);
+      commit(t,`${nm}（原住民抵抗，行動失敗）`,[],{count:true,note:'雙方各失去 1 個籌碼（自選）'});
+    }},
+  give(d){if(fail(gate('ind')))return;if(fail(S.res.ind.heart<1&&'原住民手上沒有人心卡'))return;commit('ind',`給予${tn(d.t)}信任`,xfer('ind',d.t,'heart',1),{count:true})},
+  take(d){if(fail(gate('ind')))return;if(fail(S.res[d.t].heart<1&&`${tn(d.t)}沒有人心卡可收回`))return;commit('ind',`收回${tn(d.t)}的信任`,xfer(d.t,'ind','heart',1),{count:true})},
+  treaty(d){if(fail(gate('ind')))return;if(fail(S.treaty[d.t]&&'已經和這組簽約'))return;
+    commit('ind',`和${tn(d.t)}簽約歸順`,[],{count:true,note:'每回合結束交 1 張鹿皮給該組；該組不能再強迫或開墾',mut:s=>s.treaty[d.t]=1})},
+  jumpEx(){ui.ex.count=S.round>1;if(ui.ex.to===ui.sel)ui.ex.to=ui.sel==='ind'?'nl':'ind';render();document.getElementById('ex').scrollIntoView({behavior:'smooth',block:'center'})},
+  exTo(d){ui.ex.to=d.t;renderDesk()}, exGive(d){ui.ex.give=d.r;renderDesk()}, exGet(d){ui.ex.get=d.r;renderDesk()},
+  exN(d){ui.ex.n=Math.max(1,ui.ex.n+ +d.v);renderDesk()}, exM(d){ui.ex.m=Math.max(0,ui.ex.m+ +d.v);renderDesk()},
+  exCount(){ui.ex.count=!ui.ex.count;renderDesk()},
+  exGo(){const f=ui.sel,{to,give,n,get,m,count}=ui.ex;
+    if(fail(f===to&&'請選另一組交易對象'))return; if(fail((S.out[f]||S.out[to])&&'退出臺灣的組不能交易'))return;
+    if(count&&fail(gate(f)))return;
+    if(to==='ind'&&fail(indBlock(f)))return; if(f==='ind'&&fail(indBlock(to)))return;
+    if(fail(S.res[f][give]<n&&`${tn(f)}的${RN[give].n}只有 ${S.res[f][give]}`))return;
+    if(fail(m>0&&S.res[to][get]<m&&`${tn(to)}的${RN[get].n}只有 ${S.res[to][get]}`))return;
+    const ops=[...xfer(f,to,give,n),...(m>0?xfer(to,f,get,m):[])];
+    const title=m>0?`交易：${tn(f)} 用 ${RN[give].n}×${n} 換 ${tn(to)} 的 ${RN[get].n}×${m}`:`交易：${tn(f)} 送給 ${tn(to)} ${RN[give].n}×${n}`;
+    commit(f,title,ops,{count,note:'價格自己談'})},
+  why(){const a=$('#ws-a').value.trim(),b=$('#ws-b').value.trim(),c=$('#ws-c').value.trim();
+    if(fail(!a&&!b&&!c&&'請先寫下選擇和理由'))return;
+    commit(ui.sel,`我們選「${a||'＿＿'}」，因為我們最需要「${b||'＿＿'}」，願意放棄「${c||'＿＿'}」`,[],{kind:'why'});
+    ['a','b','c'].forEach(k=>{const el=$('#ws-'+k);if(el)el.value=''})},
+  end(){const r=S.round;if(fail(S.ended[r]&&`第${CN[r]}回合已經結算過`))return;if(fail(!S.met&&'請先按「初次相遇」'))return;
+    const w=clone(S.res),ops=[],notes=[];
+    const add=(t,k,d,why)=>{if(S.out[t])return;const cur=w[t][k],nv=Math.max(0,cur+d),a=nv-cur;w[t][k]=nv;if(a)ops.push({t,r:k,d:a});notes.push(`${tn(t)} ${why}`+(a!==d?`（不足，實際 ${a?sg(a):'0'}）`:''))};
+    OUT.forEach(t=>{if(S.treaty[t]&&!S.out[t]){if(w.ind.deer>0){add('ind','deer',-1,`簽約歸順，交鹿皮 1 給${tn(t)}`);add(t,'deer',1,'收到歸順鹿皮 +1')}else notes.push(`原住民沒有鹿皮可交給${tn(t)}`)}});
+    ['nl','es'].forEach(t=>{if(S.out[t])return;const d=w[t].deer;if(d>0){add(t,'deer',-d,`港口把鹿皮賣到日本：鹿皮 −${d}`);add(t,'silver',2*d,`換得白銀 +${2*d}`)}});
+    add('nl','food',-1,'固定消耗：糧食 −1');add('es','food',-1,'固定消耗：糧食 −1');add('es','silver',-1,'補給遠，維持據點：白銀 −1');add('han','food',-2,'固定消耗：糧食 −2');
+    if(w.ind.hunt>=3)add('ind','food',1,'獵場 3 張以上，打獵自給：糧食 +1');else add('ind','food',-1,'獵場 2 張以下：糧食 −1');
+    commit('all',`第${CN[r]}回合結束：固定消耗結算`,ops,{kind:'end',note:notes.join('；'),quiet:true,mut:s=>{s.ended[r]=true}});
+    S.snap[r]=clone(S.res); if(r<3)S.round=r+1; save(); render(); toast(`第${CN[r]}回合已結算`+(r<3?`，進入第${CN[r+1]}回合`:''))},
+  bill(){push({type:'bill'},true)},
+  kox(){if(fail(S.kox&&'鄭成功事件已經發生'))return;
+    commit('all','最後事件：1661 年鄭成功從鹿耳門登陸',[{t:'ind',r:'hunt',d:-1},{t:'han',r:'food',d:1}],{kind:'event',quiet:true,note:'荷蘭組退出臺灣；鄭氏軍隊屯墾要糧要地：原住民獵場 −1，漢人糧食 +1',mut:s=>{s.kox=true;s.out.nl=1}});
+    push({type:'kox'},true)},
+  reveal(){S.reveal=true;save();render();push({type:'reveal'},true)},
+  lossConflict(d){const t=ui.cur.team;closeOv([{type:'loss',team:t,left:S.loc[t]==='A'?1:2,reason:'衝突爆發'}])},
+  deerGone(){if(fail(S.deerGone&&'已經套用過'))return;closeOv();commit('all','鹿群消失：所有外來組人心 −1',OUT.filter(t=>!S.out[t]).flatMap(t=>xfer(t,'ind','heart',1)),{kind:'event',mut:s=>s.deerGone=true})},
+  loss(d){const it=ui.cur,t=it.team,k=d.r;if(S.res[t][k]<1)return;
+    const ops=[{t,r:k,d:-1}];if(k==='heart'&&t!=='ind')ops.push({t:'ind',r:'heart',d:1});
+    commit(t,`${it.reason}：失去 ${RN[k].n} 1`,ops,{kind:'loss',quiet:true});
+    it.left--; const any=RES.some(r=>S.res[t][r.k]>0); if(it.left<=0||!any)closeOv(); else renderOv()},
+  ovClose(){closeOv()},
+  round(d){S.round=+d.r;save();render()},
+  sel(d){ui.sel=d.t;if(ui.ex.to===d.t)ui.ex.to=d.t==='ind'?'nl':'ind';render()},
+  teacher(){ui.teacher=!ui.teacher;render()},
+  adj(d){const v=+d.v;if(v<0&&S.res[d.t][d.r]<1)return;commit(d.t,`老師調整：${RN[d.r].n} ${sg(v)}`,[{t:d.t,r:d.r,d:v}],{kind:'adj',quiet:true})},
+  undo(){if(fail(!undo.length&&'沒有可以復原的步驟'))return;S=JSON.parse(undo.pop());ui.q=[];ui.cur=null;$('#ov').hidden=true;save();render();toast('已復原上一步')},
+  reset(){if(!ui.resetArm){ui.resetArm=true;$('#resetBtn').textContent='再按一次確認重新開局';setTimeout(()=>{ui.resetArm=false;$('#resetBtn').textContent='重新開局'},3500);return}
+    undo.push(JSON.stringify(S));S=init();ui.resetArm=false;$('#resetBtn').textContent='重新開局';save();render();toast('已重新開局（按「復原上一步」可找回）')},
+  copy(){const txt=buildText();const done=()=>toast('紀錄已複製');
+    try{navigator.clipboard.writeText(txt).then(done,()=>showCopy(txt))}catch(e){showCopy(txt)}}
+};
+
+/* ---------- overlay ---------- */
+function push(it,front){front?ui.q.unshift(it):ui.q.push(it);nextOv()}
+function nextOv(){if(ui.cur)return;const it=ui.q.shift();if(!it){$('#ov').hidden=true;return}ui.cur=it;renderOv();$('#ov').hidden=false}
+function closeOv(more){ui.cur=null;if(more)ui.q.unshift(...more);$('#ov').hidden=true;nextOv()}
+function checkCrises(){
+  const now=[];TEAMS.forEach(t=>{if(S.out[t.id])return;CRISES.forEach(c=>{if(c.teams.includes(t.id)&&c.cond(S.res[t.id]))now.push({c,t:t.id})})});
+  const keys=new Set(now.map(x=>x.c.id+':'+x.t));
+  Object.keys(S.seen).forEach(k=>{if(!keys.has(k))delete S.seen[k]});
+  now.forEach(x=>{const k=x.c.id+':'+x.t;if(!S.seen[k]){S.seen[k]=1;push({type:'crisis',c:x.c.id,team:x.t})}});save()}
+function renderOv(){const it=ui.cur,box=$('#ovc');box.className='ovc';box.style.removeProperty('--tc');
+  const tc=t=>box.style.setProperty('--tc',`var(--${t})`);let h='';
+  if(it.type==='crisis'){const c=CRISES.find(x=>x.id===it.c);tc(it.team);box.classList.add('crisis');
+    h=`<div class="art" aria-hidden="true">${c.art}</div><div class="who">${tn(it.team)}組</div><div class="big">${c.title}</div>
+    <div class="story">${c.story}</div><div class="rule">${c.rule}</div>
+    <div class="row">${c.act?`<button class="btn primary" data-a="${c.act==='loss-conflict'?'lossConflict':'deerGone'}">${c.actL}</button>`:''}<button class="btn" data-a="ovClose">知道了</button></div>`}
+  else if(it.type==='react'){tc('ind');const nm=it.act==='force'?'強迫部落交鹿皮':'開墾新田',eff=it.act==='force'?'鹿皮 +2（從原住民拿），人心 −1':'糧食 +2，拿走 1 張獵場卡，人心 −1';
+    h=`<div class="art" aria-hidden="true">${it.act==='force'?'🦌✋':'🌾🪓'}</div><div class="who">${tn(it.team)}組要「${nm}」</div><div class="big" style="color:var(--ind);font-size:2.6rem">原住民組怎麼反應？</div>
+    <div class="rule">接受：照行動結果進行（${eff}）<br>抵抗：行動失敗，雙方各失去 1 個籌碼（自選）</div>
+    <div class="row"><button class="btn primary" data-a="react" data-k="accept">接受</button><button class="btn" data-a="react" data-k="resist" style="border-color:var(--bad);color:var(--bad);font-weight:700">抵抗</button></div>`}
+  else if(it.type==='loss'){tc(it.team);const r=S.res[it.team];
+    h=`<div class="who">${tn(it.team)}組・${esc(it.reason)}</div><div class="big" style="font-size:2.4rem">還要失去 ${it.left} 個籌碼</div><div class="note">由這組自己選要放棄哪一種${it.team!=='ind'?'；交出的人心卡會回到原住民手上':''}</div>
+    <div class="row">${RES.map(x=>`<button class="chip r k-${x.k}" data-a="loss" data-r="${x.k}" ${r[x.k]<1?'disabled':''}><span class="tok" style="display:inline-grid;width:20px;height:20px;font-size:.7rem;vertical-align:-4px">${x.c}</span> ${x.n}（${r[x.k]}）</button>`).join('')}</div>
+    <div class="row"><button class="btn" data-a="ovClose">略過</button></div>`}
+  else if(it.type==='bill'){
+    h=`<div class="big" style="color:var(--brass);font-size:2.6rem">第三回合・帳單</div><div class="billist">${TEAMS.map(t=>{const b=billOf(t.id);
+      return `<div><b style="color:var(--${t.id})">${t.n}</b>　${b.length?b.join('；'):'沒有帳單，狀態良好'}</div>`}).join('')}</div>
+      <div class="row">${OUT.filter(t=>!S.out[t]&&S.res[t].heart===0).map(t=>`<button class="btn" data-a="billLoss" data-t="${t}">${tn(t)}：選擇衝突損失</button>`).join('')}
+      ${totalDeer()===0&&!S.deerGone?'<button class="btn" data-a="deerGone">套用鹿群消失</button>':''}<button class="btn primary" data-a="ovClose">關閉</button></div>`}
+  else if(it.type==='kox'){tc('han');
+    h=`<div class="art" aria-hidden="true">⛵⛵⛵</div><div class="who">最後事件卡</div><div class="big" style="color:var(--han);font-size:2.8rem">1661 年<br>鄭成功從鹿耳門登陸</div>
+    <div class="rule left">・荷蘭組退出臺灣<br>・鄭氏軍隊屯墾要糧要地：原住民組獵場 −1，漢人組糧食 +1<br>・接著做最後一次取捨，然後翻開祕密任務</div><div class="row"><button class="btn primary" data-a="ovClose">知道了</button></div>`}
+  else if(it.type==='reveal'){
+    h=`<div class="big" style="color:var(--brass);font-size:2.6rem">翻開祕密任務</div><div class="billist">${TEAMS.map(t=>{const ok=MISSION[t.id].ok(S.res[t.id]);
+      return `<div><b style="color:var(--${t.id})">${t.n}</b>　${MISSION[t.id].t}　<span class="pill ${ok?'good':'bad'}">${ok?'達成':'未達成'}</span></div>`}).join('')}</div>
+      <div class="rule">想一想：你得到的東西，代價是誰付的？哪一條規則讓結果變成這樣？</div><div class="row"><button class="btn primary" data-a="ovClose">關閉</button></div>`}
+  box.innerHTML=h}
+A.billLoss=d=>{closeOv([{type:'loss',team:d.t,left:S.loc[d.t]==='A'?1:2,reason:'衝突爆發'}])};
+
+function billOf(id){const r=S.res[id],b=[];if(S.out[id])return['已退出臺灣'];
+  if(id!=='ind'){if(r.heart===0)b.push(`人心 0：衝突爆發，失去 ${S.loc[id]==='A'?1:2} 個籌碼，不能再和原住民交易`);else if(r.heart===1)b.push('人心 1：部落不再合作，不能公平買鹿皮或和原住民交易')}
+  if(r.food===0)b.push('糧食 0：有人離開，這回合只能做 1 個行動');
+  if((id==='nl'||id==='es')&&r.silver===0)b.push('白銀 0：據點撤退，只能旁觀');
+  if(id==='ind'&&r.hunt===0)b.push('獵場 0：部落遷往山區');
+  if(id==='ind'&&totalDeer()===0)b.push('鹿皮全部用完：鹿群消失，所有外來組人心 −1');
+  return b}
+function badges(id){const r=S.res[id],a=[];
+  if(S.out[id])a.push(['退出臺灣','bad']);
+  if(id!=='ind'){if(S.loc[id])a.push([`落腳 ${LOC[S.loc[id]].n}`,'info']);if(S.guard[id]&&S.round<=2)a.push(['原住民防備中','warn']);if(S.treaty[id])a.push(['原住民已歸順','info']);
+    if(S.met){if(r.heart===0)a.push(['衝突爆發','bad']);else if(r.heart===1)a.push(['部落不合作','warn'])}}
+  if(r.food===0)a.push(['飢荒','bad']);
+  if((id==='nl'||id==='es')&&r.silver===0)a.push(['據點撤退','bad']);
+  if(id==='ind'){if(r.hunt===0)a.push(['遷往山區','bad']);else if(r.hunt<=2)a.push(['獵場不足・糧食−1','warn']);if(totalDeer()===0)a.push(['鹿群消失','bad']);
+    const tr=OUT.filter(t=>S.treaty[t]);if(tr.length)a.push([`歸順：${tr.map(tn).join('、')}`,'info'])}
+  if(S.reveal){const ok=MISSION[id].ok(r);a.push([`任務${ok?'達成':'未達成'}：${MISSION[id].t}`,ok?'good':'bad'])}
+  return a}
+
+/* ---------- render ---------- */
+function render(){renderTop();renderBoard();renderDesk();renderLog();renderLedger()}
+function renderTop(){
+  $('#rounds').innerHTML=[1,2,3].map(r=>`<button data-a="round" data-r="${r}" class="${S.round===r?'on':''}">第${CN[r]}回合${S.ended[r]?'<span class="ok">已結算</span>':''}</button>`).join('');
+  const e=$('#endBtn');e.textContent=S.ended[S.round]?`第${CN[S.round]}回合已結算`:`結束第${CN[S.round]}回合・結算消耗`;e.disabled=!!S.ended[S.round];
+  $('#tBtn').classList.toggle('primary',ui.teacher);$('#tBtn').textContent=ui.teacher?'老師調整中':'老師調整'}
+function renderBoard(){
+  $('#board').innerHTML=TEAMS.map(t=>{const r=S.res[t.id],u=S.used[S.round][t.id]||0,L=limit(t.id);
+    return `<article class="team t-${t.id} ${ui.sel===t.id?'sel':''} ${S.out[t.id]?'out':''}" data-a="sel" data-t="${t.id}">
+    <header><div><h3>${t.n}</h3><small>${t.sub}</small></div>${S.round>1?`<span class="acts num">行動 ${u}/${L}</span>`:''}</header>
+    <ul class="res">${RES.map(x=>`<li><span class="tok k-${x.k}">${x.c}</span><span class="nm">${x.n}</span><span class="v num ${r[x.k]===0?'zero':''}">${r[x.k]}</span>
+      ${ui.teacher?`<span class="adj"><button data-a="adj" data-t="${t.id}" data-r="${x.k}" data-v="-1" aria-label="${t.n}${x.n}減一">−</button><button data-a="adj" data-t="${t.id}" data-r="${x.k}" data-v="1" aria-label="${t.n}${x.n}加一">+</button></span>`:'<span></span>'}</li>`).join('')}</ul>
+    <div class="badges">${badges(t.id).map(([s,c])=>`<span class="pill ${c}">${s}</span>`).join('')}</div></article>`}).join('')}
+function actb(a,title,eff,dis,extra=''){return `<button class="actb" data-a="${a}" ${extra} ${dis?`disabled title="${esc(dis)}"`:''}><b>${title}</b><span>${eff}</span></button>`}
+function renderDesk(){
+  const t=ui.sel,R=ROUNDS[S.round],isInd=t==='ind';let h='';
+  h+=`<h2>${tn(t)}組的行動 <small>第${CN[S.round]}回合｜${R.t}</small></h2>`;
+  h+=`<div class="picker">${TEAMS.map(x=>`<button class="chip t-${x.id} ${t===x.id?'on':''}" data-a="sel" data-t="${x.id}">${x.n}</button>`).join('')}</div>`;
+  h+=`<div class="qbox">任務：${isInd?R.ind:R.task}<br><b>核心問題：${R.q}</b></div>`;
+  if(!S.met){h+=`<div class="sec"><h3>開局</h3>${actb('meet','初次相遇','原住民親手發給每個外來組人心 2 張，自己留 4 張')}</div>`}
+  if(S.round===1){
+    if(!isInd){h+=`<div class="sec"><h3>選一個地方落腳</h3>${S.loc[t]?`<div>已落腳：<b>${LOC[S.loc[t]].n}</b></div>`:''}<div class="acts-grid">${['A','B','C'].map(L=>{const others=OUT.filter(o=>o!==t&&S.loc[o]===L).map(tn);
+      return actb('loc',`${L}　${LOC[L].n}`,LOC[L].e+(others.length?`<br>⚠ ${others.join('、')}已選這裡：收穫各 −1`:''),S.loc[t]?'已經選過地點':null,`data-l="${L}"`)}).join('')}</div><div class="note">兩組選同一地點：收穫各 −1</div></div>`}
+    else{h+=`<div class="sec"><h3>回應陌生的船（對每一組各選一個）</h3>${OUT.map(o=>`<div class="trow"><span class="who" style="color:var(--${o})">${tn(o)}</span>${S.resp[o]?`<span class="pill info">已選：${{welcome:'歡迎',watch:'觀望',guard:'防備'}[S.resp[o]]}</span>`:
+      `<button class="chip" data-a="resp" data-t="${o}" data-k="welcome">歡迎・發人心 1</button><button class="chip" data-a="resp" data-t="${o}" data-k="watch">觀望・不變</button><button class="chip" data-a="resp" data-t="${o}" data-k="guard">防備・下回合不交易</button>`}</div>`).join('')}</div>`}
+  }else{
+    const g=gate(t),u=S.used[S.round][t]||0,L=limit(t);
+    h+=`<div class="sec"><h3>選 ${L} 個行動　已用 ${u} / ${L}</h3>${g?`<div class="warnline">${g}</div>`:''}`;
+    if(!isInd){const ib=indBlock(t);
+      h+=`<div class="acts-grid">
+      ${actb('fair','1 公平買鹿皮','白銀 −1，鹿皮 +1（向原住民買）',g||ib||(S.res[t].silver<1&&'白銀不夠'))}
+      ${actb('force','2 強迫部落交鹿皮','鹿皮 +2，人心 −1｜原住民可立即接受或抵抗',g||(S.treaty[t]&&'已簽約歸順，不能強迫'))}
+      ${actb('clear','3 開墾新田','糧食 +2，拿走 1 張獵場卡，人心 −1｜原住民可立即接受或抵抗',g||(S.treaty[t]&&'已簽約歸順，不能開墾'))}
+      ${actb('jumpEx','4 交易','和任一組換白銀、糧食、鹿皮，價格自己談',g)}</div>${ib?`<div class="warnline">${ib}</div>`:''}`}
+    else{h+=`<div class="acts-grid">${actb('jumpEx','5 交易','用鹿皮或糧食換白銀，價格自己談',g)}</div>
+      ${[['give','6 給予信任','發給某組人心 1'],['take','7 收回信任','收回某組人心 1'],['treaty','8 簽約歸順','每回合交 1 張鹿皮給某組，換那一組不能再強迫或開墾']].map(([a,n,e])=>
+      `<div class="trow"><span class="who">${n}</span>${OUT.filter(o=>!S.out[o]).map(o=>`<button class="chip t-${o}" data-a="${a}" data-t="${o}" ${g||(a==='treaty'&&S.treaty[o])?'disabled':''}>${tn(o)}</button>`).join('')}<span class="note">${e}</span></div>`).join('')}`}
+    h+=`</div>`}
+  if(S.round===3){h+=`<div class="r3"><h3>第三回合・帳單與變局（全體）</h3><div class="acts-grid">
+    ${actb('bill','檢查帳單','依人心、糧食、白銀、獵場、鹿皮列出每組後果')}
+    ${actb('kox','最後事件卡：鄭成功登陸','荷蘭退出；原住民獵場 −1，漢人糧食 +1',S.kox&&'已經發生')}
+    ${actb('reveal','翻開祕密任務','最後一次取捨後，看每組有沒有達成',S.reveal&&'已翻開')}</div></div>`}
+  const ex=ui.ex,others=TEAMS.filter(x=>x.id!==t&&!S.out[x.id]);if(ex.to===t||S.out[ex.to])ex.to=others[0]?.id;
+  h+=`<div class="ex" id="ex"><h3 style="font-family:var(--f-display);font-size:1.12rem">代幣交換（照老師的指令換）</h3>
+    <div class="line"><span class="lbl">交換對象</span>${others.map(x=>`<button class="chip t-${x.id} ${ex.to===x.id?'on':''}" data-a="exTo" data-t="${x.id}">${x.n}</button>`).join('')}</div>
+    <div class="line"><span class="lbl">${tn(t)}給出</span>${RES.map(x=>`<button class="chip r k-${x.k} ${ex.give===x.k?'on':''}" data-a="exGive" data-r="${x.k}">${x.n}</button>`).join('')}
+      <span class="step"><button data-a="exN" data-v="-1" aria-label="減少">−</button><output class="num">${ex.n}</output><button data-a="exN" data-v="1" aria-label="增加">+</button></span></div>
+    <div class="line"><span class="lbl">換回</span>${RES.map(x=>`<button class="chip r k-${x.k} ${ex.get===x.k?'on':''}" data-a="exGet" data-r="${x.k}">${x.n}</button>`).join('')}
+      <span class="step"><button data-a="exM" data-v="-1" aria-label="減少">−</button><output class="num">${ex.m}</output><button data-a="exM" data-v="1" aria-label="增加">+</button></span></div>
+    <div class="line" style="justify-content:space-between"><label class="note"><input type="checkbox" id="exc" data-a="exCount" ${ex.count?'checked':''}> 算作這組的一個行動</label>
+      <button class="btn primary" data-a="exGo">${tn(t)} ${RN[ex.give].n}×${ex.n} ⇄ ${tn(ex.to)} ${ex.m>0?RN[ex.get].n+'×'+ex.m:'（不回給）'}</button></div>
+    <div class="note">換回數量設 0 就是單方面送出（例如交出鹿皮）。</div></div>`;
+  h+=`<div class="why"><h3 style="font-family:var(--f-body);font-size:1rem;color:var(--muted)">行動前先寫下</h3>
+    <div class="line">我們選<input id="ws-a" placeholder="大員">，因為我們最需要<input id="ws-b" placeholder="白銀">，願意放棄<input id="ws-c" placeholder="人心"></div>
+    <div><button class="btn" data-a="why">記錄${tn(t)}組的選擇理由</button></div></div>`;
+  const keep={};['a','b','c'].forEach(k=>{const el=document.getElementById('ws-'+k);if(el)keep[k]=el.value});
+  $('#desk').innerHTML=h;['a','b','c'].forEach(k=>{if(keep[k])document.getElementById('ws-'+k).value=keep[k]})}
+function dsHTML(ds,only){return ds.filter(d=>!only||d.t===only).map(d=>`<span class="d t-${d.t}">${only?'':`<i>${tn(d.t)}</i> `}${RN[d.r].n} <span class="${d.d>0?'plus':'minus'}">${sg(d.d)}</span></span>`).join('')}
+function renderLog(){const L=S.log;$('#logCount').textContent=`共 ${L.length} 筆`;
+  $('#log').innerHTML=L.length?L.slice().reverse().map(e=>`<li><div class="hd"><span class="id num">#${e.id}</span><span class="rtag">第${CN[e.round]}回合</span><span class="tag t-${e.team}">${tn(e.team)}</span><span class="tt">${esc(e.title)}</span></div>
+    ${e.deltas.length?`<div class="ds">${dsHTML(e.deltas)}</div>`:''}${e.note?`<div class="nt">${esc(e.note)}</div>`:''}</li>`).join('')
+    :'<li class="empty">還沒有紀錄。先按「初次相遇」，再請各組落腳。</li>'}
+function net(r,id){const m={};S.log.filter(e=>e.round===r).forEach(e=>e.deltas.forEach(d=>{if(d.t===id)m[d.r]=(m[d.r]||0)+d.d}));return RES.filter(x=>m[x.k]).map(x=>`${x.n} ${sg(m[x.k])}`)}
+const holdTxt=res=>RES.map(x=>`${x.c}${res[x.k]}`).join(' ');
+function renderLedger(){
+  $('#ledger').innerHTML=[1,2,3].map(r=>{const E=S.log.filter(e=>e.round===r);
+    return `<div class="rnd"><h3>第${CN[r]}回合｜${ROUNDS[r].t.split('：')[0]}<small>${S.ended[r]?'已結算':S.round===r?'進行中':E.length?'進行中':'尚未開始'}</small></h3>
+    ${TEAMS.map(t=>{const mine=E.filter(e=>e.team===t.id||e.deltas.some(d=>d.t===t.id)),n=net(r,t.id);
+      return `<div class="pl"><div><span class="tag t-${t.id}">${t.n}</span> <span class="net">淨變化：${n.length?n.join('、'):'沒有變化'}</span></div>
+      ${S.snap[r]?`<div class="hold num">回合結束持有：${holdTxt(S.snap[r][t.id])}</div>`:''}
+      ${mine.length?`<ol>${mine.map(e=>e.kind==='why'?`<li class="w">${esc(e.title)}</li>`:`<li>${esc(e.title)}${e.deltas.some(d=>d.t===t.id)?'：'+e.deltas.filter(d=>d.t===t.id).map(d=>RN[d.r].n+' '+sg(d.d)).join('、'):''}</li>`).join('')}</ol>`:''}</div>`}).join('')}</div>`}).join('')}
+function buildText(){let s='臺灣登上國際舞臺｜沙盤推演紀錄\n';
+  [1,2,3].forEach(r=>{const E=S.log.filter(e=>e.round===r);if(!E.length)return;s+=`\n第${CN[r]}回合｜${ROUNDS[r].t}\n`;
+    TEAMS.forEach(t=>{const n=net(r,t.id);s+=`【${t.n}】淨變化：${n.length?n.join('、'):'沒有變化'}${S.snap[r]?'｜回合結束持有：'+RES.map(x=>x.n+S.snap[r][t.id][x.k]).join(' '):''}\n`;
+      E.filter(e=>e.team===t.id||e.deltas.some(d=>d.t===t.id)).forEach(e=>{s+=`  #${e.id} ${e.title}${e.deltas.some(d=>d.t===t.id)?'：'+e.deltas.filter(d=>d.t===t.id).map(d=>RN[d.r].n+' '+sg(d.d)).join('、'):''}\n`})})});
+  s+='\n目前持有\n';TEAMS.forEach(t=>s+=`${t.n}：${RES.map(x=>x.n+S.res[t.id][x.k]).join(' ')}\n`);
+  if(S.reveal){s+='\n祕密任務\n';TEAMS.forEach(t=>s+=`${t.n}：${MISSION[t.id].t}｜${MISSION[t.id].ok(S.res[t.id])?'達成':'未達成'}\n`)}
+  return s}
+function showCopy(txt){ui.cur={type:'copy'};const b=$('#ovc');b.className='ovc';b.innerHTML=`<div class="who" style="color:var(--ink)">選取下面的文字後複製</div><textarea class="cp" id="cpt" readonly>${esc(txt)}</textarea><div class="row"><button class="btn primary" data-a="ovClose">關閉</button></div>`;$('#ov').hidden=false;const ta=$('#cpt');ta.focus();ta.select()}
+
+function renderRules(){const li=a=>`<ul>${a.map(x=>`<li>${x}</li>`).join('')}</ul>`;
+  $('#rulesBody').innerHTML=[
+  ['開局與初次相遇',`<p>荷蘭：白銀 5、糧食 1｜西班牙：白銀 3、糧食 1｜漢人移民：白銀 1、糧食 2｜原住民：鹿皮 6、糧食 3、獵場卡 4、人心卡 10</p>`+li(['原住民親手發給每個外來組人心 2 張，自己留 4 張','之後人心的增減都由原住民發出或收回；收回的人心卡回到原住民手上，可以再發','每回合行動前先寫：我們選＿＿，因為我們最需要＿＿，願意放棄＿＿'])],
+  ['第一回合｜登陸',li(['A 雞籠、淡水：沒有額外收穫；城堡好守，之後衝突只失去 1 個籌碼','B 笨港：糧食 +2，向原住民拿 1 張獵場卡，原住民收回人心 1','C 大員：白銀 +2；糧食要向新港社換','兩組選同一地點：收穫各 −1','原住民回應（每組各選一個）：歡迎＝發人心 1；觀望＝不變；防備＝下回合不和這組交易'])],
+  ['第二回合｜交易（每組選 2 個行動）',`<p><b>外來組</b></p>`+li(['1 公平買鹿皮：白銀 −1，鹿皮 +1','2 強迫部落交鹿皮：鹿皮 +2，人心 −1','3 開墾新田：糧食 +2，拿走 1 張獵場卡，人心 −1','4 交易：和任一組換白銀、糧食、鹿皮，價格自己談'])+`<p style="margin-top:6px"><b>原住民組</b></p>`+li(['5 交易：用鹿皮或糧食換白銀，價格自己談','6 給予信任：發給某組人心 1','7 收回信任：收回某組人心 1','8 簽約歸順：每回合交 1 張鹿皮給某組，換那一組不能再強迫或開墾','立即反應：外來組強迫或開墾時，原住民可選「接受」照結果進行，或「抵抗」讓行動失敗、雙方各失去 1 個籌碼'])],
+  ['每回合結束固定消耗',li(['荷蘭、西班牙：糧食 −1','漢人：糧食 −2','西班牙：白銀 −1（補給遠，維持據點花錢）','原住民：獵場 3 張以上，打獵自給，糧食 +1；獵場 2 張以下，糧食 −1','有港口者（荷蘭、西班牙）：手上鹿皮自動賣到日本，1 張換白銀 2','紀錄器結算順序：歸順鹿皮 → 港口賣鹿皮 → 固定消耗'])],
+  ['第三回合｜帳單',li(['人心 0：衝突爆發，失去 2 個籌碼（雞籠淡水的組只失去 1 個），且不能再和原住民交易','人心 1：部落不再合作，不能公平買鹿皮或和原住民交易','糧食 0：有人離開，這回合只能做 1 個行動','白銀 0：據點撤退，只能旁觀','獵場 0：部落遷往山區（像大肚王國族人）','鹿皮全部用完：鹿群消失，所有外來組人心 −1','最後事件卡：1661 年鄭成功從鹿耳門登陸。荷蘭退出臺灣；原住民獵場 −1，漢人糧食 +1','然後做最後一次取捨並翻開祕密任務'])],
+  ['祕密任務（遊戲結束才翻開）',li(TEAMS.map(t=>`${t.n}：${MISSION[t.id].t}`))+`<p class="note" style="margin-top:6px">代幣用完時，紀錄器會跳出該組的狀態畫面（飢荒、據點撤退、衝突爆發、遷往山區、鹿群消失）。第三回合的行動限制由紀錄器自動套用。</p>`]
+  ].map(([h,b])=>`<div class="rcard"><h4>${h}</h4>${b}</div>`).join('')}
+
+document.addEventListener('click',e=>{const b=e.target.closest('[data-a]');if(!b||b.disabled)return;
+  if(b.closest('.team')&&b.dataset.a!=='sel'){e.stopPropagation()}
+  const f=A[b.dataset.a];if(f){if(b.tagName==='INPUT'&&b.type==='checkbox'){f(b.dataset)}else f(b.dataset)}});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&ui.cur&&ui.cur.type!=='react')closeOv()});
+renderRules();render();
+</script>
+</body>
+</html>
