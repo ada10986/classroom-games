@@ -480,7 +480,7 @@ function renderDesk(){
     ${actb('kox','最後事件卡：鄭成功登陸','荷蘭退出；原住民獵場 −1，漢人糧食 +1',S.kox&&'已經發生')}
     ${actb('reveal','翻開祕密任務','最後一次取捨後，看每組有沒有達成',S.reveal&&'已翻開')}</div></div>`}
   const ex=ui.ex,others=TEAMS.filter(x=>x.id!==t&&!S.out[x.id]);if(ex.to===t||S.out[ex.to])ex.to=others[0]?.id;
-  h+=`<div class="ex" id="ex"><h3 style="font-family:var(--f-display);font-size:1.12rem">代幣交換（照老師的指令換）</h3>
+  h+=`<div class="ex" id="ex"><h3 style="font-family:var(--f-display);font-size:1.12rem">代幣交換（談好條件後輸入）</h3>
     <div class="line"><span class="lbl">交換對象</span>${others.map(x=>`<button class="chip t-${x.id} ${ex.to===x.id?'on':''}" data-a="exTo" data-t="${x.id}">${x.n}</button>`).join('')}</div>
     <div class="line"><span class="lbl">${tn(t)}給出</span>${RES.map(x=>`<button class="chip r k-${x.k} ${ex.give===x.k?'on':''}" data-a="exGive" data-r="${x.k}">${x.n}</button>`).join('')}
       <span class="step"><button data-a="exN" data-v="-1" aria-label="減少">−</button><output class="num">${ex.n}</output><button data-a="exN" data-v="1" aria-label="增加">+</button></span></div>
