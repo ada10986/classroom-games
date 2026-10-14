@@ -243,9 +243,11 @@ const OUT=['nl','es','han'];
 const CN=['','一','二','三'];
 const MISSION={
   nl:{t:'結束時白銀至少 8',ok:r=>r.silver>=8},
-  es:{t:'白銀不能歸零（據點守住）',ok:r=>r.silver>0},
-  han:{t:'糧食不能歸零',ok:r=>r.food>0},
-  ind:{t:'至少保住 1 張獵場卡，糧食不能歸零',ok:r=>r.hunt>=1&&r.food>0}};
+  es:{t:'白銀整場不能歸零（據點守住）',ok:r=>r.silver>0&&!zeroAt('es','silver')},
+  han:{t:'糧食整場不能歸零',ok:r=>r.food>0&&!zeroAt('han','food')},
+  ind:{t:'至少保住 1 張獵場卡，糧食整場不能歸零',ok:r=>r.hunt>=1&&r.food>0&&!zeroAt('ind','food')}};
+const zeroAt=(t,k)=>(S.zero||{})[t+'_'+k];
+const zeroNote=id=>{const k={es:'silver',han:'food',ind:'food'}[id];const r=k&&zeroAt(id,k);return r?`（第${CN[r]}回合${RN[k].n}曾歸零）`:''};
 const LOC={
   A:{n:'雞籠、淡水',e:'沒有額外收穫；城堡好守，之後衝突只失去 1 個籌碼'},
   B:{n:'笨港',e:'糧食 +2，向原住民拿 1 張獵場卡，原住民收回人心 1'},
@@ -287,6 +289,7 @@ function commit(team,title,ops,opt={}){
   const deltas=[],notes=[];
   ops.forEach(o=>{if(!o.d)return;const cur=S.res[o.t][o.r];let nv=cur+o.d;if(nv<0){notes.push(`${tn(o.t)}${RN[o.r].n}不夠，只扣到 0`);nv=0}const a=nv-cur;S.res[o.t][o.r]=nv;if(a)deltas.push({t:o.t,r:o.r,d:a})});
   if(opt.count){const k=ukey();const u=S.used[k]||(S.used[k]={});u[team]=(u[team]||0)+1}
+  S.zero=S.zero||{};TEAMS.forEach(x=>RES.forEach(r=>{const k=x.id+'_'+r.k;if(S.met&&S.res[x.id][r.k]===0&&!S.zero[k])S.zero[k]=S.round}));
   S.log.push({id:++S.seq,round:S.round,team,title,deltas,note:[opt.note,...notes].filter(Boolean).join('；'),kind:opt.kind||'act'});
   save(); render(); checkCrises(); if(!opt.quiet) toast('已記錄：'+title);
 }
@@ -431,7 +434,7 @@ function renderOv(){const it=ui.cur,box=$('#ovc');box.className='ovc';box.style.
     <div class="rule left">・荷蘭組退出臺灣<br>・鄭氏軍隊屯墾要糧要地：原住民組獵場 −1，漢人組糧食 +1<br>・接著做最後一次取捨，然後翻開祕密任務</div><div class="row"><button class="btn primary" data-a="ovClose">知道了</button></div>`}
   else if(it.type==='reveal'){
     h=`<div class="big" style="color:var(--brass);font-size:2.6rem">翻開祕密任務</div><div class="billist">${TEAMS.map(t=>{const ok=MISSION[t.id].ok(S.res[t.id]);
-      return `<div><b style="color:var(--${t.id})">${t.n}</b>　${MISSION[t.id].t}　<span class="pill ${ok?'good':'bad'}">${ok?'達成':'未達成'}</span></div>`}).join('')}</div>
+      return `<div><b style="color:var(--${t.id})">${t.n}</b>　${MISSION[t.id].t}　<span class="pill ${ok?'good':'bad'}">${ok?'達成':'未達成'}</span>${ok?'':zeroNote(t.id)}</div>`}).join('')}</div>
       <div class="rule">想一想：你得到的東西，代價是誰付的？哪一條規則讓結果變成這樣？</div><div class="row"><button class="btn primary" data-a="ovClose">關閉</button></div>`}
   box.innerHTML=h}
 A.billLoss=d=>{closeOv([{type:'loss',team:d.t,left:S.loc[d.t]==='A'?1:2,reason:'衝突爆發'}])};
